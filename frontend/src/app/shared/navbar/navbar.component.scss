@@ -1,0 +1,195 @@
+.navbar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--t-grad) !important;
+  box-shadow: 0 4px 20px var(--t-shadow) !important;
+  transition: background 0.4s ease;
+}
+
+.nav-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+/* Brand */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: white;
+  margin-right: 20px;
+
+  .brand-icon-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.18);
+    backdrop-filter: blur(4px);
+
+    mat-icon {
+      font-size: 20px;
+      height: 20px;
+      width: 20px;
+      color: white;
+    }
+  }
+
+  .brand-text {
+    font-size: 1rem;
+    font-weight: 700;
+    white-space: nowrap;
+    letter-spacing: 0.3px;
+  }
+}
+
+/* Nav links */
+.nav-links {
+  display: flex;
+  gap: 2px;
+
+  a {
+    color: rgba(255,255,255,0.82);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    border-radius: 8px;
+    transition: background 0.2s, color 0.2s;
+    padding: 6px 14px;
+
+    mat-icon { font-size: 17px; height: 17px; width: 17px; }
+
+    &:hover {
+      color: white;
+      background: rgba(255,255,255,0.12);
+    }
+
+    &.active-link {
+      color: white;
+      background: rgba(255,255,255,0.2);
+      font-weight: 700;
+    }
+  }
+}
+
+/* Right side */
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Notification button */
+.notif-btn {
+  color: rgba(255,255,255,0.85);
+  transition: background 0.2s;
+  &:hover { background: rgba(255,255,255,0.12) !important; }
+}
+
+/* User button */
+.user-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: white;
+  border-radius: 28px !important;
+  padding: 4px 14px 4px 6px !important;
+  background: rgba(255,255,255,0.14) !important;
+  transition: background 0.2s;
+  &:hover { background: rgba(255,255,255,0.22) !important; }
+}
+
+.avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.25);
+  border: 2px solid rgba(255,255,255,0.4);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: white;
+  letter-spacing: 0.5px;
+}
+
+.user-name {
+  font-size: 0.875rem;
+  font-weight: 600;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Menus */
+.notif-header {
+  padding: 10px 16px;
+  font-weight: 700;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--t-mid);
+}
+
+.notif-empty {
+  padding: 16px;
+  color: #94a3b8;
+  font-size: 0.875rem;
+  text-align: center;
+}
+
+.notif-message {
+  font-size: 0.875rem;
+  max-width: 260px;
+  white-space: normal;
+  line-height: 1.4;
+}
+
+.user-info-header {
+  padding: 10px 16px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+
+  .user-role {
+    font-size: 0.7rem;
+    font-weight: 800;
+    color: var(--t-mid);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 2px 8px;
+    background: var(--t-bg);
+    border-radius: 6px;
+    display: inline-block;
+    width: fit-content;
+  }
+
+  .user-email {
+    font-size: 0.8rem;
+    color: #64748b;
+  }
+}
+
+button.unread {
+  background: var(--t-bg);
+  font-weight: 600;
+}
+
+/* Login link */
+.login-nav-btn {
+  color: white !important;
+  border: 1.5px solid rgba(255,255,255,0.5) !important;
+  border-radius: 8px !important;
+  font-weight: 600 !important;
+  &:hover { background: rgba(255,255,255,0.12) !important; }
+}

@@ -1,0 +1,66 @@
+package com.recruitment.controller;
+
+import com.recruitment.dto.application.ApplicationDto;
+import com.recruitment.dto.application.ApplicationStatusUpdateRequest;
+import com.recruitment.service.ApplicationService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.http.MediaType;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+@RestController
+@RequestMapping("/api/applications")
+@RequiredArgsConstructor
+public class ApplicationController {
+
+    private final ApplicationService applicationService;
+
+    @Operation(summary = "Submit a job application with CV upload")
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasRole('CANDIDATE')")
+    public ApplicationDto submit(
+            @RequestParam Long offerId,
+            @RequestParam(required = false) String coverLetter,
+            @Parameter(description = "CV file (PDF, DOC, DOCX — max 10 MB)",
+                       content = @Content(mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
+                                          schema = @Schema(type = "string", format = "binary")))
+            @RequestPart("cv") MultipartFile cv) {
+        return applicationService.submit(offerId, coverLetter, cv);
+    }
+
+    @GetMapping("/me")
+    public Page<ApplicationDto> mine(Pageable pageable) {
+        return applicationService.myApplications(pageable);
+    }
+
+    @GetMapping("/by-offer/{offerId}")
+    @PreAuthorize("hasAnyRole('ADMIN','RECRUITER')")
+    public Page<ApplicationDto> byOffer(@PathVariable Long offerId, Pageable pageable) {
+        return applicationService.byOffer(offerId, pageable);
+    }
+
+    @GetMapping("/{id}")
+    public ApplicationDto get(@PathVariable Long id) {
+        return applicationService.get(id);
+    }
+
+    @PatchMapping("/{id}/status")
+    @PreAuthorize("hasAnyRole('ADMIN','RECRUITER')")
+    public ApplicationDto updateStatus(@PathVariable Long id, @Valid @RequestBody ApplicationStatusUpdateRequest req) {
+        return applicationService.updateStatus(id, req);
+    }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('CANDIDATE')")
+    public void withdraw(@PathVariable Long id) {
+        applicationService.withdraw(id);
+    }
+}

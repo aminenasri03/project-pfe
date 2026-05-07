@@ -1,0 +1,92 @@
+<div class="offers-page">
+  <!-- Hero header -->
+  <div class="page-hero">
+    <h1><mat-icon>work_outline</mat-icon> Offres d'emploi</h1>
+    <p>{{ totalElements }} offre(s) disponible(s) · Trouvez votre prochain défi</p>
+  </div>
+
+  <!-- Filters -->
+  <mat-card class="filter-card">
+    <form [formGroup]="filterForm" class="filter-form">
+      <mat-form-field appearance="outline" class="filter-keyword">
+        <mat-label>Rechercher</mat-label>
+        <input matInput formControlName="keyword" placeholder="Titre, description...">
+        <mat-icon matSuffix>search</mat-icon>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="filter-dept">
+        <mat-label>Département</mat-label>
+        <mat-select formControlName="department">
+          <mat-option value="">Tous</mat-option>
+          @for (dept of departments; track dept) {
+            <mat-option [value]="dept">{{ dept }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="filter-status">
+        <mat-label>Statut</mat-label>
+        <mat-select formControlName="status">
+          <mat-option value="">Tous</mat-option>
+          <mat-option value="OPEN">Ouverte</mat-option>
+          <mat-option value="CLOSED">Fermée</mat-option>
+          @if (canSeeDraft()) {
+            <mat-option value="DRAFT">Brouillon</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+
+      <button mat-stroked-button type="button" (click)="resetFilters()">
+        <mat-icon>clear</mat-icon> Réinitialiser
+      </button>
+    </form>
+  </mat-card>
+
+  <!-- Offers grid -->
+  @if (loading) {
+    <div class="loading-center">
+      <mat-spinner diameter="48"></mat-spinner>
+    </div>
+  } @else if (offers.length === 0) {
+    <div class="empty-state">
+      <mat-icon>search_off</mat-icon>
+      <p>Aucune offre trouvée.</p>
+    </div>
+  } @else {
+    <div class="offers-grid">
+      @for (offer of offers; track offer.id) {
+        <mat-card class="offer-card" routerLink="/offers/{{ offer.id }}">
+          <mat-card-header>
+            <mat-card-title>{{ offer.title }}</mat-card-title>
+            <mat-card-subtitle>
+              <mat-icon class="small-icon">business</mat-icon> {{ offer.department }}
+              &nbsp;·&nbsp;
+              <mat-icon class="small-icon">location_on</mat-icon> {{ offer.location }}
+            </mat-card-subtitle>
+          </mat-card-header>
+          <mat-card-content>
+            <p class="description">{{ (offer.description || '') | slice:0:120 }}{{ (offer.description || '').length > 120 ? '…' : '' }}</p>
+            <div class="tags">
+              <span class="chip chip-{{ offer.status.toLowerCase() }}">{{ statusLabel(offer.status) }}</span>
+              <span class="chip chip-contract">{{ offer.contractType }}</span>
+            </div>
+          </mat-card-content>
+          <mat-card-actions>
+            <button mat-button color="primary" [routerLink]="['/offers', offer.id]">
+              Voir l'offre <mat-icon>arrow_forward</mat-icon>
+            </button>
+          </mat-card-actions>
+        </mat-card>
+      }
+    </div>
+
+    <mat-paginator
+      [length]="totalElements"
+      [pageSize]="pageSize"
+      [pageIndex]="pageIndex"
+      [pageSizeOptions]="[6, 9, 18]"
+      (page)="onPage($event)"
+      showFirstLastButtons>
+    </mat-paginator>
+  }
+</div>

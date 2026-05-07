@@ -1,0 +1,114 @@
+<div class="detail-page">
+  @if (loading) {
+    <div class="loading-center">
+      <mat-spinner diameter="48"></mat-spinner>
+    </div>
+  } @else if (offer) {
+    <div class="detail-layout">
+      <!-- Main content -->
+      <div class="main-col">
+        <button mat-button routerLink="/offers" class="back-btn">
+          <mat-icon>arrow_back</mat-icon> Retour aux offres
+        </button>
+
+        <mat-card class="detail-card">
+          <div class="offer-header">
+            <div class="offer-badge">
+              <span class="status-chip status-{{ offer.status.toLowerCase() }}">{{ offer.status === 'OPEN' ? 'Ouverte' : offer.status === 'CLOSED' ? 'Fermée' : 'Brouillon' }}</span>
+              <span class="contract-chip">{{ offer.contractType }}</span>
+            </div>
+            <h1>{{ offer.title }}</h1>
+            <div class="offer-meta">
+              <span><mat-icon>business</mat-icon> {{ offer.department }}</span>
+              <span><mat-icon>location_on</mat-icon> {{ offer.location }}</span>
+              <span><mat-icon>calendar_today</mat-icon> Créé le {{ offer.createdAt | date:'dd/MM/yyyy' }}</span>
+              @if (offer.closesAt) {
+                <span><mat-icon>event_busy</mat-icon> Clôture le {{ offer.closesAt | date:'dd/MM/yyyy' }}</span>
+              }
+            </div>
+          </div>
+
+          <mat-divider></mat-divider>
+
+          <div class="section">
+            <h2><mat-icon>description</mat-icon> Description du poste</h2>
+            <p>{{ offer.description }}</p>
+          </div>
+
+          @if (offer.requiredSkills) {
+            <mat-divider></mat-divider>
+            <div class="section">
+              <h2><mat-icon>checklist</mat-icon> Profil requis</h2>
+              <p>{{ offer.requiredSkills }}</p>
+            </div>
+          }
+        </mat-card>
+
+        <!-- Apply form -->
+        @if (showApplyForm && auth.isCandidate()) {
+          <mat-card class="apply-card">
+            <mat-card-header>
+              <mat-card-title>Postuler à cette offre</mat-card-title>
+            </mat-card-header>
+            <mat-card-content>
+              <form [formGroup]="applyForm" (ngSubmit)="apply()">
+                <mat-form-field appearance="outline" class="full-width">
+                  <mat-label>Lettre de motivation</mat-label>
+                  <textarea matInput formControlName="coverLetter" rows="6"
+                    placeholder="Expliquez pourquoi vous êtes le candidat idéal..."></textarea>
+                  @if (applyForm.get('coverLetter')?.hasError('required') && applyForm.get('coverLetter')?.touched) {
+                    <mat-error>La lettre de motivation est requise.</mat-error>
+                  }
+                </mat-form-field>
+
+                <div class="cv-upload">
+                  <label class="cv-label">CV (PDF, DOC, DOCX — requis)</label>
+                  <input type="file" accept=".pdf,.doc,.docx" (change)="onFileSelected($event)" #fileInput style="display:none">
+                  <button mat-stroked-button type="button" (click)="fileInput.click()">
+                    <mat-icon>attach_file</mat-icon>
+                    {{ selectedCv ? selectedCv.name : 'Choisir un fichier' }}
+                  </button>
+                  @if (!selectedCv) {
+                    <span class="cv-hint">Aucun fichier sélectionné</span>
+                  }
+                </div>
+
+                <div class="apply-actions">
+                  <button mat-stroked-button type="button" (click)="showApplyForm = false; selectedCv = null">Annuler</button>
+                  <button mat-raised-button color="primary" type="submit" [disabled]="applying">
+                    @if (applying) { <mat-spinner diameter="18"></mat-spinner> } @else { Envoyer ma candidature }
+                  </button>
+                </div>
+              </form>
+            </mat-card-content>
+          </mat-card>
+        }
+      </div>
+
+      <!-- Sidebar -->
+      <div class="side-col">
+        <mat-card class="action-card">
+          @if (!auth.isAuthenticated()) {
+            <p class="action-hint">Connectez-vous pour postuler.</p>
+            <button mat-raised-button color="primary" class="full-width" routerLink="/login">
+              <mat-icon>login</mat-icon> Se connecter
+            </button>
+          } @else if (auth.isCandidate() && offer.status === 'OPEN') {
+            @if (!showApplyForm) {
+              <button mat-raised-button color="primary" class="full-width" (click)="showApplyForm = true">
+                <mat-icon>send</mat-icon> Postuler maintenant
+              </button>
+            }
+            <button mat-stroked-button class="full-width mt-8" routerLink="/my-applications">
+              <mat-icon>folder_open</mat-icon> Mes candidatures
+            </button>
+          } @else if (auth.isRecruiter() || auth.isAdmin()) {
+            <button mat-stroked-button color="primary" class="full-width" routerLink="/recruiter">
+              <mat-icon>dashboard</mat-icon> Tableau de bord
+            </button>
+          }
+        </mat-card>
+      </div>
+    </div>
+  }
+</div>

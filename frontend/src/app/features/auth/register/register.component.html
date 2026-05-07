@@ -1,0 +1,86 @@
+<div class="register-container">
+  <mat-card class="register-card">
+    <mat-card-header>
+      <div class="logo-area">
+        <div class="logo-icon"><mat-icon>work</mat-icon></div>
+        <h1 class="app-title">Créer un compte</h1>
+        <p class="app-subtitle">Sopra HR Software</p>
+      </div>
+    </mat-card-header>
+
+    <mat-card-content>
+      <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+        <div class="row-2">
+          <mat-form-field appearance="outline">
+            <mat-label>Prénom</mat-label>
+            <input matInput formControlName="firstName" autocomplete="given-name">
+            <mat-icon matPrefix>person</mat-icon>
+            @if (form.get('firstName')?.hasError('required') && form.get('firstName')?.touched) {
+              <mat-error>Requis</mat-error>
+            }
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Nom</mat-label>
+            <input matInput formControlName="lastName" autocomplete="family-name">
+            @if (form.get('lastName')?.hasError('required') && form.get('lastName')?.touched) {
+              <mat-error>Requis</mat-error>
+            }
+          </mat-form-field>
+        </div>
+
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Adresse e-mail</mat-label>
+          <input matInput formControlName="email" type="email" autocomplete="email">
+          <mat-icon matPrefix>email</mat-icon>
+          @if (form.get('email')?.hasError('required') && form.get('email')?.touched) {
+            <mat-error>L'adresse e-mail est requise.</mat-error>
+          } @else if (form.get('email')?.hasError('email') && form.get('email')?.touched) {
+            <mat-error>Adresse e-mail invalide.</mat-error>
+          }
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Mot de passe</mat-label>
+          <input matInput formControlName="password" [type]="hidePassword ? 'password' : 'text'" autocomplete="new-password">
+          <mat-icon matPrefix>lock</mat-icon>
+          <button mat-icon-button matSuffix type="button" (click)="hidePassword = !hidePassword">
+            <mat-icon>{{ hidePassword ? 'visibility_off' : 'visibility' }}</mat-icon>
+          </button>
+          @if (form.get('password')?.hasError('required') && form.get('password')?.touched) {
+            <mat-error>Le mot de passe est requis.</mat-error>
+          } @else if (form.get('password')?.hasError('minlength') && form.get('password')?.touched) {
+            <mat-error>Minimum 8 caractères.</mat-error>
+          }
+        </mat-form-field>
+
+        <div class="row-2">
+          <mat-form-field appearance="outline">
+            <mat-label>Département (optionnel)</mat-label>
+            <input matInput formControlName="department">
+            <mat-icon matPrefix>business</mat-icon>
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Poste (optionnel)</mat-label>
+            <input matInput formControlName="jobTitle">
+            <mat-icon matPrefix>badge</mat-icon>
+          </mat-form-field>
+        </div>
+
+        @if (error) {
+          <div class="error-message">
+            <mat-icon>error_outline</mat-icon>
+            <span>{{ error }}</span>
+          </div>
+        }
+
+        <button mat-raised-button color="primary" type="submit" class="full-width submit-btn" [disabled]="loading">
+          @if (loading) { <mat-spinner diameter="20"></mat-spinner> } @else { Créer mon compte }
+        </button>
+
+        <p class="login-link">
+          Déjà un compte ? <a routerLink="/login">Se connecter</a>
+        </p>
+      </form>
+    </mat-card-content>
+  </mat-card>
+</div>

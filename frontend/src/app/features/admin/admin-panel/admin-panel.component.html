@@ -1,0 +1,112 @@
+<div class="admin-page">
+  <div class="page-hero" style="margin-bottom:28px">
+    <h1><mat-icon>admin_panel_settings</mat-icon> Administration</h1>
+    <p>Gérez les utilisateurs et les accès de la plateforme</p>
+  </div>
+
+  <!-- Stats cards -->
+  <div class="stats-grid">
+    <mat-card class="stat-card red">
+      <mat-icon>group</mat-icon>
+      <div class="stat-value">{{ users.length }}</div>
+      <div class="stat-label">Utilisateurs</div>
+    </mat-card>
+    <mat-card class="stat-card orange">
+      <mat-icon>check_circle</mat-icon>
+      <div class="stat-value">{{ activeCount }}</div>
+      <div class="stat-label">Actifs</div>
+    </mat-card>
+    <mat-card class="stat-card pink">
+      <mat-icon>manage_accounts</mat-icon>
+      <div class="stat-value">{{ recruiterCount }}</div>
+      <div class="stat-label">Recruteurs</div>
+    </mat-card>
+    <mat-card class="stat-card rose">
+      <mat-icon>person_search</mat-icon>
+      <div class="stat-value">{{ candidateCount }}</div>
+      <div class="stat-label">Candidats</div>
+    </mat-card>
+    <mat-card class="stat-card crimson">
+      <mat-icon>admin_panel_settings</mat-icon>
+      <div class="stat-value">{{ adminCount }}</div>
+      <div class="stat-label">Admins</div>
+    </mat-card>
+  </div>
+
+  <!-- Users table -->
+  <mat-card class="table-card">
+    <mat-card-header>
+      <mat-card-title>Gestion des utilisateurs</mat-card-title>
+    </mat-card-header>
+    <mat-card-content>
+      @if (loadingUsers) {
+        <div class="loading-center"><mat-spinner diameter="40"></mat-spinner></div>
+      } @else {
+        <table mat-table [dataSource]="users" class="full-width">
+          <ng-container matColumnDef="name">
+            <th mat-header-cell *matHeaderCellDef>Nom</th>
+            <td mat-cell *matCellDef="let u">{{ u.firstName }} {{ u.lastName }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="email">
+            <th mat-header-cell *matHeaderCellDef>Email</th>
+            <td mat-cell *matCellDef="let u" class="email-cell">{{ u.email }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="role">
+            <th mat-header-cell *matHeaderCellDef>Rôle</th>
+            <td mat-cell *matCellDef="let u">
+              <div class="role-cell">
+                <span class="role-badge role-{{ roleClass(u.role) }}">{{ u.role }}</span>
+                <button mat-icon-button [matMenuTriggerFor]="roleMenu" title="Changer le rôle" class="role-menu-btn">
+                  <mat-icon>arrow_drop_down</mat-icon>
+                </button>
+                <mat-menu #roleMenu="matMenu">
+                  @for (r of allRoles; track r) {
+                    <button mat-menu-item (click)="changeRole(u, r)" [disabled]="u.role === r">
+                      <mat-icon>{{ r === 'ADMIN' ? 'admin_panel_settings' : r === 'RECRUITER' ? 'manage_accounts' : 'person_search' }}</mat-icon>
+                      <span>{{ r }}</span>
+                      @if (u.role === r) { <mat-icon class="check-icon">check</mat-icon> }
+                    </button>
+                  }
+                </mat-menu>
+              </div>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="status">
+            <th mat-header-cell *matHeaderCellDef>Statut</th>
+            <td mat-cell *matCellDef="let u">
+              <span class="status-dot" [class.active]="u.enabled" [class.inactive]="!u.enabled">
+                {{ u.enabled ? 'Actif' : 'Inactif' }}
+              </span>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="createdAt">
+            <th mat-header-cell *matHeaderCellDef>Créé le</th>
+            <td mat-cell *matCellDef="let u">{{ u.createdAt | date:'dd/MM/yyyy' }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="actions">
+            <th mat-header-cell *matHeaderCellDef>Actions</th>
+            <td mat-cell *matCellDef="let u" class="action-cell">
+              <button mat-icon-button
+                [color]="u.enabled ? 'warn' : 'primary'"
+                (click)="toggleUser(u)"
+                [title]="u.enabled ? 'Désactiver' : 'Activer'">
+                <mat-icon>{{ u.enabled ? 'person_off' : 'person' }}</mat-icon>
+              </button>
+              <button mat-icon-button color="warn" (click)="deleteUser(u)" title="Supprimer">
+                <mat-icon>delete</mat-icon>
+              </button>
+            </td>
+          </ng-container>
+
+          <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+        </table>
+      }
+    </mat-card-content>
+  </mat-card>
+</div>

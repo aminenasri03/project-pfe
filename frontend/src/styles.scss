@@ -1,0 +1,149 @@
+@use '@angular/material' as mat;
+
+@include mat.core();
+
+$primary: mat.m2-define-palette(mat.$m2-blue-palette, 700);
+$accent:  mat.m2-define-palette(mat.$m2-blue-palette, A400);
+$warn:    mat.m2-define-palette(mat.$m2-red-palette);
+
+$theme: mat.m2-define-light-theme((
+  color: (primary: $primary, accent: $accent, warn: $warn),
+  typography: mat.m2-define-typography-config(),
+  density: 0
+));
+
+@include mat.all-component-themes($theme);
+
+/* ── Theme tokens ─────────────────────────────────────────────── */
+/* Default = Candidate (Blue) */
+:root {
+  --t-dark:   #0d47a1;
+  --t-mid:    #1565c0;
+  --t-light:  #1976d2;
+  --t-accent: #42a5f5;
+  --t-bg:     #e3f2fd;
+  --t-chip:   #bbdefb;
+  --t-text:   #0d47a1;
+  --t-grad:   linear-gradient(135deg, #0d47a1 0%, #1565c0 55%, #1976d2 100%);
+  --t-hero:   linear-gradient(135deg, #082f72 0%, #0d47a1 40%, #1565c0 70%, #1976d2 100%);
+  --t-glass:  rgba(13, 71, 161, 0.07);
+  --t-border: rgba(13, 71, 161, 0.18);
+  --t-shadow: rgba(13, 71, 161, 0.18);
+}
+
+/* Admin — Deep Red */
+.theme-admin {
+  --t-dark:   #7f0000;
+  --t-mid:    #b71c1c;
+  --t-light:  #c62828;
+  --t-accent: #ef5350;
+  --t-bg:     #ffebee;
+  --t-chip:   #ffcdd2;
+  --t-text:   #b71c1c;
+  --t-grad:   linear-gradient(135deg, #7f0000 0%, #b71c1c 55%, #c62828 100%);
+  --t-hero:   linear-gradient(135deg, #3e0000 0%, #7f0000 35%, #b71c1c 65%, #c62828 100%);
+  --t-glass:  rgba(183, 28, 28, 0.07);
+  --t-border: rgba(183, 28, 28, 0.18);
+  --t-shadow: rgba(183, 28, 28, 0.18);
+}
+
+/* Recruiter — Emerald Green */
+.theme-recruiter {
+  --t-dark:   #1a3d1c;
+  --t-mid:    #1b5e20;
+  --t-light:  #2e7d32;
+  --t-accent: #66bb6a;
+  --t-bg:     #e8f5e9;
+  --t-chip:   #c8e6c9;
+  --t-text:   #1b5e20;
+  --t-grad:   linear-gradient(135deg, #1a3d1c 0%, #1b5e20 55%, #2e7d32 100%);
+  --t-hero:   linear-gradient(135deg, #0a1a0b 0%, #1a3d1c 35%, #1b5e20 65%, #2e7d32 100%);
+  --t-glass:  rgba(27, 94, 32, 0.07);
+  --t-border: rgba(27, 94, 32, 0.18);
+  --t-shadow: rgba(27, 94, 32, 0.18);
+}
+
+/* ── Reset & Base ─────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  margin: 0;
+  font-family: 'Inter', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  background: #f0f4f8;
+  color: #1e293b;
+}
+
+.main-content { min-height: calc(100vh - 64px); }
+
+/* ── Snackbars ────────────────────────────────────────────────── */
+.snack-success .mat-mdc-snack-bar-container {
+  --mdc-snackbar-container-color: #1b5e20;
+  --mdc-snackbar-supporting-text-color: white;
+}
+.snack-error .mat-mdc-snack-bar-container {
+  --mdc-snackbar-container-color: #b71c1c;
+  --mdc-snackbar-supporting-text-color: white;
+}
+
+/* ── Tables ───────────────────────────────────────────────────── */
+.mat-mdc-table { width: 100%; }
+
+th.mat-mdc-header-cell {
+  font-weight: 700 !important;
+  color: var(--t-mid) !important;
+  background: #f8fafc !important;
+  font-size: 0.78rem !important;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+
+/* ── Shared hero header ───────────────────────────────────────── */
+.page-hero {
+  background: var(--t-hero);
+  border-radius: 20px;
+  padding: 32px 36px;
+  margin-bottom: 28px;
+  color: white;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 8px 32px var(--t-shadow);
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: -50%; right: -8%;
+    width: 320px; height: 320px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.05);
+    pointer-events: none;
+  }
+  &::after {
+    content: '';
+    position: absolute;
+    bottom: -70%; left: 5%;
+    width: 240px; height: 240px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.04);
+    pointer-events: none;
+  }
+
+  h1 {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 1.85rem;
+    font-weight: 800;
+    margin: 0 0 6px;
+    color: white;
+    mat-icon { font-size: 30px; height: 30px; width: 30px; }
+  }
+
+  p { margin: 0; opacity: 0.82; font-size: 0.95rem; }
+}
+
+/* ── Scrollbar ────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #f1f5f9; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }

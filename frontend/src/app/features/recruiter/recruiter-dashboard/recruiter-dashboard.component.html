@@ -1,0 +1,342 @@
+<div class="dashboard-page">
+  <div class="page-hero" style="margin-bottom:24px">
+    <div>
+      <h1><mat-icon>dashboard</mat-icon> Tableau de bord Recruteur</h1>
+      <p>Gérez vos offres, candidatures et évaluations</p>
+    </div>
+    <div class="header-stats">
+      <div class="stat-chip"><mat-icon>work_outline</mat-icon> {{ offers.length }} offres</div>
+      <div class="stat-chip warn"><mat-icon>pending_actions</mat-icon> {{ applications.length }} candidatures</div>
+    </div>
+  </div>
+
+  <mat-tab-group>
+    <!-- OFFERS TAB -->
+    <mat-tab label="Mes offres">
+      <div class="tab-content">
+        <div class="tab-actions">
+          <button mat-raised-button color="primary" (click)="startCreate()">
+            <mat-icon>add</mat-icon> Nouvelle offre
+          </button>
+        </div>
+
+        <!-- Offer form -->
+        @if (showOfferForm) {
+          <mat-card class="form-card">
+            <mat-card-header>
+              <mat-card-title>{{ editingOffer ? 'Modifier l\'offre' : 'Créer une offre' }}</mat-card-title>
+            </mat-card-header>
+            <mat-card-content>
+              <form [formGroup]="offerForm" (ngSubmit)="saveOffer()" class="offer-form">
+                <div class="form-row">
+                  <mat-form-field appearance="outline" class="flex2">
+                    <mat-label>Titre</mat-label>
+                    <input matInput formControlName="title">
+                    @if (offerForm.get('title')?.hasError('required') && offerForm.get('title')?.touched) {
+                      <mat-error>Requis</mat-error>
+                    }
+                  </mat-form-field>
+                  <mat-form-field appearance="outline" class="flex1">
+                    <mat-label>Département</mat-label>
+                    <mat-select formControlName="department">
+                      @for (d of departments; track d) {
+                        <mat-option [value]="d">{{ d }}</mat-option>
+                      }
+                    </mat-select>
+                  </mat-form-field>
+                </div>
+
+                <div class="form-row">
+                  <mat-form-field appearance="outline" class="flex1">
+                    <mat-label>Lieu</mat-label>
+                    <input matInput formControlName="location">
+                  </mat-form-field>
+                  <mat-form-field appearance="outline" class="flex1">
+                    <mat-label>Type de contrat</mat-label>
+                    <mat-select formControlName="contractType">
+                      @for (c of contractTypes; track c) {
+                        <mat-option [value]="c">{{ c }}</mat-option>
+                      }
+                    </mat-select>
+                  </mat-form-field>
+                </div>
+
+                <mat-form-field appearance="outline" class="full-width">
+                  <mat-label>Description</mat-label>
+                  <textarea matInput formControlName="description" rows="4"></textarea>
+                </mat-form-field>
+
+                <mat-form-field appearance="outline" class="full-width">
+                  <mat-label>Profil requis / Compétences</mat-label>
+                  <textarea matInput formControlName="requiredSkills" rows="3"></textarea>
+                </mat-form-field>
+
+                <mat-form-field appearance="outline">
+                  <mat-label>Date de clôture</mat-label>
+                  <input matInput formControlName="closesAt" type="date">
+                </mat-form-field>
+
+                <div class="form-actions">
+                  <button mat-stroked-button type="button" (click)="showOfferForm = false">Annuler</button>
+                  <button mat-raised-button color="primary" type="submit">
+                    {{ editingOffer ? 'Mettre à jour' : 'Créer' }}
+                  </button>
+                </div>
+              </form>
+            </mat-card-content>
+          </mat-card>
+        }
+
+        <!-- Offers table -->
+        @if (loadingOffers) {
+          <div class="loading-center"><mat-spinner diameter="40"></mat-spinner></div>
+        } @else if (offers.length === 0) {
+          <div class="empty-state">
+            <mat-icon>work_off</mat-icon><p>Aucune offre créée.</p>
+          </div>
+        } @else {
+          <mat-card class="table-card">
+            <table mat-table [dataSource]="offers" class="full-width">
+              <ng-container matColumnDef="title">
+                <th mat-header-cell *matHeaderCellDef>Titre</th>
+                <td mat-cell *matCellDef="let o">
+                  <a [routerLink]="['/offers', o.id]" class="link">{{ o.title }}</a>
+                </td>
+              </ng-container>
+              <ng-container matColumnDef="department">
+                <th mat-header-cell *matHeaderCellDef>Département</th>
+                <td mat-cell *matCellDef="let o">{{ o.department }}</td>
+              </ng-container>
+              <ng-container matColumnDef="status">
+                <th mat-header-cell *matHeaderCellDef>Statut</th>
+                <td mat-cell *matCellDef="let o">
+                  <span class="badge badge-{{ o.status.toLowerCase() }}">{{ statusLabel(o.status) }}</span>
+                </td>
+              </ng-container>
+              <ng-container matColumnDef="createdAt">
+                <th mat-header-cell *matHeaderCellDef>Créé le</th>
+                <td mat-cell *matCellDef="let o">{{ o.createdAt | date:'dd/MM/yyyy' }}</td>
+              </ng-container>
+              <ng-container matColumnDef="actions">
+                <th mat-header-cell *matHeaderCellDef></th>
+                <td mat-cell *matCellDef="let o" class="action-cell">
+                  <button mat-icon-button color="primary" (click)="startEdit(o)" title="Modifier">
+                    <mat-icon>edit</mat-icon>
+                  </button>
+                  @if (o.status === 'DRAFT') {
+                    <button mat-icon-button color="accent" (click)="publishOffer(o)" title="Publier">
+                      <mat-icon>publish</mat-icon>
+                    </button>
+                  }
+                  @if (o.status === 'OPEN') {
+                    <button mat-icon-button (click)="closeOffer(o)" title="Fermer">
+                      <mat-icon>lock</mat-icon>
+                    </button>
+                  }
+                  <button mat-icon-button color="warn" (click)="deleteOffer(o)" title="Supprimer">
+                    <mat-icon>delete</mat-icon>
+                  </button>
+                </td>
+              </ng-container>
+              <tr mat-header-row *matHeaderRowDef="offerColumns"></tr>
+              <tr mat-row *matRowDef="let r; columns: offerColumns;"></tr>
+            </table>
+          </mat-card>
+        }
+      </div>
+    </mat-tab>
+
+    <!-- APPLICATIONS TAB -->
+    <mat-tab>
+      <ng-template mat-tab-label>
+        Candidatures
+        @if (pendingCount > 0) {
+          <span class="tab-badge">{{ pendingCount }}</span>
+        }
+      </ng-template>
+
+      <div class="tab-content">
+        @if (loadingApps) {
+          <div class="loading-center"><mat-spinner diameter="40"></mat-spinner></div>
+        } @else if (applications.length === 0) {
+          <div class="empty-state"><mat-icon>inbox</mat-icon><p>Aucune candidature.</p></div>
+        } @else {
+          <mat-card class="table-card">
+            <table mat-table [dataSource]="applications" class="full-width">
+              <ng-container matColumnDef="candidate">
+                <th mat-header-cell *matHeaderCellDef>Candidat</th>
+                <td mat-cell *matCellDef="let a">{{ a.candidateFullName }}</td>
+              </ng-container>
+              <ng-container matColumnDef="offer">
+                <th mat-header-cell *matHeaderCellDef>Offre</th>
+                <td mat-cell *matCellDef="let a">{{ a.offerTitle }}</td>
+              </ng-container>
+              <ng-container matColumnDef="appliedAt">
+                <th mat-header-cell *matHeaderCellDef>Date</th>
+                <td mat-cell *matCellDef="let a">{{ a.submittedAt | date:'dd/MM/yyyy' }}</td>
+              </ng-container>
+              <ng-container matColumnDef="status">
+                <th mat-header-cell *matHeaderCellDef>Statut</th>
+                <td mat-cell *matCellDef="let a">
+                  <span class="badge badge-app-{{ a.status.toLowerCase() }}">{{ statusLabel(a.status) }}</span>
+                </td>
+              </ng-container>
+              <ng-container matColumnDef="actions">
+                <th mat-header-cell *matHeaderCellDef>Actions</th>
+                <td mat-cell *matCellDef="let a" class="action-cell">
+                  <mat-select [value]="a.status" (selectionChange)="updateAppStatus(a, $event.value)" class="status-select">
+                    @for (s of applicationStatuses; track s.value) {
+                      <mat-option [value]="s.value">{{ s.label }}</mat-option>
+                    }
+                  </mat-select>
+                  <button mat-icon-button color="primary" (click)="openInterviewForm(a)" title="Planifier un entretien">
+                    <mat-icon>event</mat-icon>
+                  </button>
+                </td>
+              </ng-container>
+              <tr mat-header-row *matHeaderRowDef="appColumns"></tr>
+              <tr mat-row *matRowDef="let r; columns: appColumns;"></tr>
+            </table>
+          </mat-card>
+
+          <!-- Interview scheduling panel -->
+          @if (interviewTargetApp) {
+            <mat-card class="form-card interview-panel">
+              <mat-card-header>
+                <mat-card-title>
+                  <mat-icon>event</mat-icon>
+                  Planifier un entretien — {{ interviewTargetApp.candidateFullName }}
+                </mat-card-title>
+              </mat-card-header>
+              <mat-card-content>
+                <form [formGroup]="interviewForm" (ngSubmit)="submitInterview()" class="offer-form">
+                  <div class="form-row">
+                    <mat-form-field appearance="outline" class="flex1">
+                      <mat-label>Date et heure</mat-label>
+                      <input matInput type="datetime-local" formControlName="scheduledAt">
+                      @if (interviewForm.get('scheduledAt')?.hasError('required') && interviewForm.get('scheduledAt')?.touched) {
+                        <mat-error>Requis</mat-error>
+                      }
+                    </mat-form-field>
+                    <mat-form-field appearance="outline" class="flex1">
+                      <mat-label>Mode</mat-label>
+                      <mat-select formControlName="mode">
+                        <mat-option value="ON_SITE">Présentiel</mat-option>
+                        <mat-option value="VIDEO">Vidéo</mat-option>
+                        <mat-option value="PHONE">Téléphone</mat-option>
+                      </mat-select>
+                    </mat-form-field>
+                  </div>
+                  <mat-form-field appearance="outline" class="full-width">
+                    <mat-label>Lieu / Lien (optionnel)</mat-label>
+                    <input matInput formControlName="location">
+                    <mat-icon matPrefix>location_on</mat-icon>
+                  </mat-form-field>
+                  <mat-form-field appearance="outline" class="full-width">
+                    <mat-label>Notes (optionnel)</mat-label>
+                    <textarea matInput formControlName="notes" rows="2"></textarea>
+                  </mat-form-field>
+                  <div class="form-actions">
+                    <button mat-stroked-button type="button" (click)="interviewTargetApp = null">Annuler</button>
+                    <button mat-raised-button color="primary" type="submit" [disabled]="savingInterview">
+                      @if (savingInterview) { <mat-spinner diameter="18"></mat-spinner> } @else { Planifier }
+                    </button>
+                  </div>
+                </form>
+              </mat-card-content>
+            </mat-card>
+          }
+        }
+      </div>
+    </mat-tab>
+
+    <!-- EVALUATIONS TAB -->
+    <mat-tab label="Évaluations">
+      <div class="tab-content">
+        <div class="tab-actions">
+          <mat-form-field appearance="outline" class="eval-app-select">
+            <mat-label>Sélectionner une candidature</mat-label>
+            <mat-select [(value)]="selectedAppId" (selectionChange)="loadEvaluations()">
+              @for (a of applications; track a.id) {
+                <mat-option [value]="a.id">{{ a.candidateFullName }} — {{ a.offerTitle }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+        </div>
+
+        @if (selectedAppId) {
+          <!-- Add evaluation form -->
+          <mat-card class="form-card">
+            <mat-card-header><mat-card-title>Ajouter une évaluation</mat-card-title></mat-card-header>
+            <mat-card-content>
+              <form [formGroup]="evalForm" (ngSubmit)="submitEvaluation()" class="eval-form">
+                <div class="form-row">
+                  <mat-form-field appearance="outline" class="flex1">
+                    <mat-label>Score (0–100)</mat-label>
+                    <input matInput type="number" formControlName="score" min="0" max="100">
+                  </mat-form-field>
+                  <mat-form-field appearance="outline" class="flex1">
+                    <mat-label>Décision</mat-label>
+                    <mat-select formControlName="decision">
+                      <mat-option value="">— Aucune —</mat-option>
+                      <mat-option value="HIRE">HIRE</mat-option>
+                      <mat-option value="REJECT">REJECT</mat-option>
+                      <mat-option value="HOLD">HOLD</mat-option>
+                    </mat-select>
+                  </mat-form-field>
+                </div>
+                <mat-form-field appearance="outline" class="full-width">
+                  <mat-label>Commentaires</mat-label>
+                  <textarea matInput formControlName="comments" rows="3"></textarea>
+                </mat-form-field>
+                <div class="form-actions">
+                  <button mat-raised-button color="primary" type="submit" [disabled]="savingEval">
+                    @if (savingEval) { <mat-spinner diameter="18"></mat-spinner> } @else { Enregistrer }
+                  </button>
+                </div>
+              </form>
+            </mat-card-content>
+          </mat-card>
+
+          <!-- Evaluations list -->
+          @if (loadingEvals) {
+            <div class="loading-center"><mat-spinner diameter="40"></mat-spinner></div>
+          } @else if (evaluations.length === 0) {
+            <div class="empty-state"><mat-icon>rate_review</mat-icon><p>Aucune évaluation pour cette candidature.</p></div>
+          } @else {
+            <mat-card class="table-card">
+              <table mat-table [dataSource]="evaluations" class="full-width">
+                <ng-container matColumnDef="evaluator">
+                  <th mat-header-cell *matHeaderCellDef>Évaluateur</th>
+                  <td mat-cell *matCellDef="let e">{{ e.evaluatorName }}</td>
+                </ng-container>
+                <ng-container matColumnDef="score">
+                  <th mat-header-cell *matHeaderCellDef>Score</th>
+                  <td mat-cell *matCellDef="let e">{{ e.score !== null ? e.score + ' / 100' : '—' }}</td>
+                </ng-container>
+                <ng-container matColumnDef="decision">
+                  <th mat-header-cell *matHeaderCellDef>Décision</th>
+                  <td mat-cell *matCellDef="let e">
+                    @if (e.decision) {
+                      <span class="decision-badge decision-{{ e.decision.toLowerCase() }}">{{ e.decision }}</span>
+                    } @else { — }
+                  </td>
+                </ng-container>
+                <ng-container matColumnDef="comments">
+                  <th mat-header-cell *matHeaderCellDef>Commentaires</th>
+                  <td mat-cell *matCellDef="let e">{{ e.comments || '—' }}</td>
+                </ng-container>
+                <ng-container matColumnDef="createdAt">
+                  <th mat-header-cell *matHeaderCellDef>Date</th>
+                  <td mat-cell *matCellDef="let e">{{ e.createdAt | date:'dd/MM/yyyy HH:mm' }}</td>
+                </ng-container>
+                <tr mat-header-row *matHeaderRowDef="evalColumns"></tr>
+                <tr mat-row *matRowDef="let r; columns: evalColumns;"></tr>
+              </table>
+            </mat-card>
+          }
+        }
+      </div>
+    </mat-tab>
+  </mat-tab-group>
+</div>

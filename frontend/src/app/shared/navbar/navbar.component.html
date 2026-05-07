@@ -1,0 +1,86 @@
+<mat-toolbar color="primary" class="navbar">
+  <div class="nav-left">
+    <a routerLink="/" class="brand">
+      <div class="brand-icon-wrap"><mat-icon>work</mat-icon></div>
+      <span class="brand-text">Sopra HR Recrutement</span>
+    </a>
+
+    @if (auth.isAuthenticated()) {
+      <nav class="nav-links">
+        <a routerLink="/offers" routerLinkActive="active-link">
+          <mat-icon>list_alt</mat-icon> Offres
+        </a>
+        @if (auth.isCandidate()) {
+          <a routerLink="/my-applications" routerLinkActive="active-link">
+            <mat-icon>folder_open</mat-icon> Mes candidatures
+          </a>
+        }
+        @if (auth.isRecruiter()) {
+          <a routerLink="/recruiter" routerLinkActive="active-link">
+            <mat-icon>dashboard</mat-icon> Tableau de bord
+          </a>
+        }
+        @if (auth.isAdmin()) {
+          <a routerLink="/recruiter" routerLinkActive="active-link">
+            <mat-icon>dashboard</mat-icon> Recrutement
+          </a>
+          <a routerLink="/admin" routerLinkActive="active-link">
+            <mat-icon>admin_panel_settings</mat-icon> Administration
+          </a>
+        }
+      </nav>
+    }
+  </div>
+
+  <div class="nav-right">
+    @if (auth.isAuthenticated()) {
+      <!-- Notifications -->
+      <button mat-icon-button class="notif-btn" [matMenuTriggerFor]="notifMenu" (click)="loadNotifications()">
+        @if (unreadCount > 0) {
+          <mat-icon [matBadge]="unreadCount" matBadgeColor="warn">notifications</mat-icon>
+        } @else {
+          <mat-icon>notifications_none</mat-icon>
+        }
+      </button>
+
+      <mat-menu #notifMenu="matMenu" class="notif-menu">
+        <div class="notif-header">Notifications</div>
+        <mat-divider></mat-divider>
+        @if (notifications.length === 0) {
+          <div class="notif-empty">Aucune notification</div>
+        }
+        @for (notif of notifications; track notif.id) {
+          <button mat-menu-item [class.unread]="!notif.read" (click)="markRead(notif.id)">
+            <mat-icon>{{ notif.read ? 'check_circle' : 'circle_notifications' }}</mat-icon>
+            <span class="notif-message">{{ notif.message }}</span>
+          </button>
+        }
+      </mat-menu>
+
+      <!-- User menu -->
+      <button mat-button [matMenuTriggerFor]="userMenu" class="user-btn">
+        <span class="avatar">{{ userInitials }}</span>
+        <span class="user-name">{{ userFullName }}</span>
+        <mat-icon>arrow_drop_down</mat-icon>
+      </button>
+
+      <mat-menu #userMenu="matMenu">
+        <div class="user-info-header">
+          <span class="user-role">{{ auth.role() }}</span>
+          <span class="user-email">{{ auth.currentUser()?.email }}</span>
+        </div>
+        <mat-divider></mat-divider>
+        <button mat-menu-item routerLink="/profile">
+          <mat-icon>account_circle</mat-icon>
+          <span>Mon profil</span>
+        </button>
+        <button mat-menu-item (click)="logout()">
+          <mat-icon>logout</mat-icon>
+          <span>Déconnexion</span>
+        </button>
+      </mat-menu>
+    } @else {
+      <a mat-button routerLink="/login" class="login-nav-btn">Se connecter</a>
+    }
+  </div>
+</mat-toolbar>

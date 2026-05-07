@@ -1,0 +1,68 @@
+<div class="apps-page">
+  <div class="page-hero" style="margin-bottom:24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px">
+    <div>
+      <h1><mat-icon>folder_open</mat-icon> Mes candidatures</h1>
+      <p>Suivez l'avancement de vos candidatures</p>
+    </div>
+    <button mat-flat-button style="background:rgba(255,255,255,0.18);color:white;border:1px solid rgba(255,255,255,0.4);border-radius:10px;font-weight:700" routerLink="/offers">
+      <mat-icon>search</mat-icon> Voir les offres
+    </button>
+  </div>
+
+  @if (loading) {
+    <div class="loading-center"><mat-spinner diameter="48"></mat-spinner></div>
+  } @else if (applications.length === 0) {
+    <div class="empty-state">
+      <mat-icon>inbox</mat-icon>
+      <p>Vous n'avez pas encore postulé à une offre.</p>
+      <button mat-raised-button color="primary" routerLink="/offers">Découvrir les offres</button>
+    </div>
+  } @else {
+    <mat-card class="table-card">
+      <table mat-table [dataSource]="applications" class="full-width">
+        <!-- Offer column -->
+        <ng-container matColumnDef="offer">
+          <th mat-header-cell *matHeaderCellDef>Offre</th>
+          <td mat-cell *matCellDef="let a">
+            <a [routerLink]="['/offers', a.offerId]" class="offer-link">{{ a.offerTitle }}</a>
+          </td>
+        </ng-container>
+
+        <!-- Department column -->
+        <ng-container matColumnDef="department">
+          <th mat-header-cell *matHeaderCellDef>Score</th>
+          <td mat-cell *matCellDef="let a">{{ a.matchingScore != null ? (a.matchingScore | number:'1.0-0') + '%' : '—' }}</td>
+        </ng-container>
+
+        <!-- Applied At -->
+        <ng-container matColumnDef="appliedAt">
+          <th mat-header-cell *matHeaderCellDef>Date</th>
+          <td mat-cell *matCellDef="let a">{{ a.submittedAt | date:'dd/MM/yyyy' }}</td>
+        </ng-container>
+
+        <!-- Status -->
+        <ng-container matColumnDef="status">
+          <th mat-header-cell *matHeaderCellDef>Statut</th>
+          <td mat-cell *matCellDef="let a">
+            <span class="status-badge status-{{ statusClass(a.status) }}">{{ statusLabel(a.status) }}</span>
+          </td>
+        </ng-container>
+
+        <!-- Actions -->
+        <ng-container matColumnDef="actions">
+          <th mat-header-cell *matHeaderCellDef></th>
+          <td mat-cell *matCellDef="let a">
+            @if (canWithdraw(a.status)) {
+              <button mat-icon-button color="warn" (click)="withdraw(a)" title="Retirer la candidature">
+                <mat-icon>delete</mat-icon>
+              </button>
+            }
+          </td>
+        </ng-container>
+
+        <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+      </table>
+    </mat-card>
+  }
+</div>

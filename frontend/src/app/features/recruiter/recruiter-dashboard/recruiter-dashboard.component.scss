@@ -1,0 +1,197 @@
+.dashboard-page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px 16px;
+}
+
+.page-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.header-stats {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  position: relative;
+  z-index: 1;
+}
+
+.stat-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 18px;
+  background: rgba(255,255,255,0.18);
+  color: white;
+  border-radius: 20px;
+  font-size: 0.875rem;
+  font-weight: 700;
+  border: 1px solid rgba(255,255,255,0.3);
+  backdrop-filter: blur(4px);
+
+  mat-icon { font-size: 17px; height: 17px; width: 17px; }
+  &.warn { background: rgba(255,160,0,0.25); border-color: rgba(255,160,0,0.4); }
+}
+
+.tab-content { padding: 20px 0; }
+
+.tab-actions { margin-bottom: 16px; }
+
+.form-card {
+  margin-bottom: 20px;
+  border-radius: 16px !important;
+  border: 1px solid var(--t-border) !important;
+  overflow: hidden;
+}
+
+.form-card-header {
+  padding: 16px 20px;
+  background: var(--t-bg);
+  border-bottom: 1px solid var(--t-border);
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--t-mid);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  mat-icon { font-size: 20px; height: 20px; width: 20px; }
+}
+
+.offer-form {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 20px;
+}
+
+.form-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.flex1 { flex: 1; min-width: 150px; }
+.flex2 { flex: 2; min-width: 200px; }
+.full-width { width: 100%; }
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding-top: 8px;
+}
+
+.table-card {
+  border-radius: 16px !important;
+  overflow: hidden;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.07) !important;
+  border: 1px solid #e8ecf0 !important;
+}
+
+.link {
+  color: var(--t-mid);
+  text-decoration: none;
+  font-weight: 600;
+  &:hover { text-decoration: underline; }
+}
+
+.badge {
+  padding: 4px 11px;
+  border-radius: 20px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+
+  &.badge-open    { background: #dcfce7; color: #166534; }
+  &.badge-closed  { background: #fee2e2; color: #991b1b; }
+  &.badge-draft   { background: #fef3c7; color: #92400e; }
+
+  &.badge-app-submitted            { background: #dbeafe; color: #1e40af; }
+  &.badge-app-under_review         { background: #fef3c7; color: #92400e; }
+  &.badge-app-shortlisted          { background: #ede9fe; color: #5b21b6; }
+  &.badge-app-interview_scheduled  { background: #fce7f3; color: #9d174d; }
+  &.badge-app-accepted             { background: #dcfce7; color: #166534; }
+  &.badge-app-rejected             { background: #fee2e2; color: #991b1b; }
+  &.badge-app-withdrawn            { background: #f1f5f9; color: #475569; }
+}
+
+.action-cell { white-space: nowrap; }
+
+.status-select {
+  min-width: 180px;
+  font-size: 0.875rem;
+}
+
+.tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #ef4444;
+  color: white;
+  border-radius: 10px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  margin-left: 6px;
+}
+
+.loading-center {
+  display: flex;
+  justify-content: center;
+  padding: 40px;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 60px 20px;
+  color: #94a3b8;
+
+  mat-icon { font-size: 56px; height: 56px; width: 56px; margin-bottom: 10px; opacity: 0.4; }
+  p { color: #64748b; margin: 0; }
+}
+
+.eval-app-select { min-width: 320px; }
+
+.eval-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.interview-panel {
+  margin-top: 20px;
+  border-radius: 16px !important;
+  border-left: 5px solid var(--t-mid) !important;
+  background: var(--t-bg) !important;
+
+  mat-card-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--t-mid);
+    font-weight: 700;
+    mat-icon { font-size: 20px; }
+  }
+}
+
+.decision-badge {
+  padding: 4px 11px;
+  border-radius: 20px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+
+  &.decision-hire   { background: #dcfce7; color: #166534; }
+  &.decision-reject { background: #fee2e2; color: #991b1b; }
+  &.decision-hold   { background: #fef3c7; color: #92400e; }
+}
