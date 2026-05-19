@@ -96,6 +96,7 @@
           </div>
         } @else {
           <mat-card class="table-card">
+            <div class="table-wrapper">
             <table mat-table [dataSource]="offers" class="full-width">
               <ng-container matColumnDef="title">
                 <th mat-header-cell *matHeaderCellDef>Titre</th>
@@ -141,6 +142,7 @@
               <tr mat-header-row *matHeaderRowDef="offerColumns"></tr>
               <tr mat-row *matRowDef="let r; columns: offerColumns;"></tr>
             </table>
+            </div>
           </mat-card>
         }
       </div>
@@ -161,8 +163,54 @@
         } @else if (applications.length === 0) {
           <div class="empty-state"><mat-icon>inbox</mat-icon><p>Aucune candidature.</p></div>
         } @else {
+          <!-- Filter bar -->
+          <div class="filter-bar">
+            <mat-form-field appearance="outline" class="filter-search">
+              <mat-label>Rechercher</mat-label>
+              <mat-icon matPrefix>search</mat-icon>
+              <input matInput [(ngModel)]="filterSearch" placeholder="Nom, email, offre...">
+              @if (filterSearch) {
+                <button matSuffix mat-icon-button (click)="filterSearch = ''">
+                  <mat-icon>close</mat-icon>
+                </button>
+              }
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="filter-status">
+              <mat-label>Statut</mat-label>
+              <mat-select [(ngModel)]="filterStatus">
+                <mat-option value="">Tous les statuts</mat-option>
+                <mat-option value="SUBMITTED">Soumise</mat-option>
+                <mat-option value="UNDER_REVIEW">En examen</mat-option>
+                <mat-option value="SHORTLISTED">Présélectionné(e)</mat-option>
+                <mat-option value="INTERVIEW_SCHEDULED">Entretien planifié</mat-option>
+                <mat-option value="ACCEPTED">Acceptée</mat-option>
+                <mat-option value="REJECTED">Refusée</mat-option>
+              </mat-select>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="filter-offer">
+              <mat-label>Offre</mat-label>
+              <mat-select [(ngModel)]="filterOfferId">
+                <mat-option [value]="null">Toutes les offres</mat-option>
+                @for (o of offers; track o.id) {
+                  <mat-option [value]="o.id">{{ o.title }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+
+            @if (activeFilterCount > 0) {
+              <button mat-stroked-button color="warn" (click)="clearFilters()" class="clear-filter-btn">
+                <mat-icon>filter_alt_off</mat-icon> Effacer ({{ activeFilterCount }})
+              </button>
+            }
+
+            <span class="result-count">{{ filteredApplications.length }} / {{ applications.length }}</span>
+          </div>
+
           <mat-card class="table-card">
-            <table mat-table [dataSource]="applications" class="full-width">
+            <div class="table-wrapper">
+            <table mat-table [dataSource]="filteredApplications" class="full-width">
               <ng-container matColumnDef="candidate">
                 <th mat-header-cell *matHeaderCellDef>Candidat</th>
                 <td mat-cell *matCellDef="let a">{{ a.candidateFullName }}</td>
@@ -182,21 +230,27 @@
                 </td>
               </ng-container>
               <ng-container matColumnDef="actions">
-                <th mat-header-cell *matHeaderCellDef>Actions</th>
+                <th mat-header-cell *matHeaderCellDef>Statut &amp; Actions</th>
                 <td mat-cell *matCellDef="let a" class="action-cell">
                   <mat-select [value]="a.status" (selectionChange)="updateAppStatus(a, $event.value)" class="status-select">
                     @for (s of applicationStatuses; track s.value) {
                       <mat-option [value]="s.value">{{ s.label }}</mat-option>
                     }
                   </mat-select>
-                  <button mat-icon-button color="primary" (click)="openInterviewForm(a)" title="Planifier un entretien">
-                    <mat-icon>event</mat-icon>
+                  <button mat-stroked-button color="primary" (click)="viewApplication(a)" class="action-btn"
+                    title="Voir la candidature">
+                    <mat-icon>visibility</mat-icon> Voir
+                  </button>
+                  <button mat-stroked-button color="accent" (click)="openInterviewForm(a)" class="action-btn"
+                    title="Planifier un entretien">
+                    <mat-icon>event</mat-icon> Entretien
                   </button>
                 </td>
               </ng-container>
               <tr mat-header-row *matHeaderRowDef="appColumns"></tr>
               <tr mat-row *matRowDef="let r; columns: appColumns;"></tr>
             </table>
+            </div>
           </mat-card>
 
           <!-- Interview scheduling panel -->
@@ -244,95 +298,6 @@
                   </div>
                 </form>
               </mat-card-content>
-            </mat-card>
-          }
-        }
-      </div>
-    </mat-tab>
-
-    <!-- EVALUATIONS TAB -->
-    <mat-tab label="Évaluations">
-      <div class="tab-content">
-        <div class="tab-actions">
-          <mat-form-field appearance="outline" class="eval-app-select">
-            <mat-label>Sélectionner une candidature</mat-label>
-            <mat-select [(value)]="selectedAppId" (selectionChange)="loadEvaluations()">
-              @for (a of applications; track a.id) {
-                <mat-option [value]="a.id">{{ a.candidateFullName }} — {{ a.offerTitle }}</mat-option>
-              }
-            </mat-select>
-          </mat-form-field>
-        </div>
-
-        @if (selectedAppId) {
-          <!-- Add evaluation form -->
-          <mat-card class="form-card">
-            <mat-card-header><mat-card-title>Ajouter une évaluation</mat-card-title></mat-card-header>
-            <mat-card-content>
-              <form [formGroup]="evalForm" (ngSubmit)="submitEvaluation()" class="eval-form">
-                <div class="form-row">
-                  <mat-form-field appearance="outline" class="flex1">
-                    <mat-label>Score (0–100)</mat-label>
-                    <input matInput type="number" formControlName="score" min="0" max="100">
-                  </mat-form-field>
-                  <mat-form-field appearance="outline" class="flex1">
-                    <mat-label>Décision</mat-label>
-                    <mat-select formControlName="decision">
-                      <mat-option value="">— Aucune —</mat-option>
-                      <mat-option value="HIRE">HIRE</mat-option>
-                      <mat-option value="REJECT">REJECT</mat-option>
-                      <mat-option value="HOLD">HOLD</mat-option>
-                    </mat-select>
-                  </mat-form-field>
-                </div>
-                <mat-form-field appearance="outline" class="full-width">
-                  <mat-label>Commentaires</mat-label>
-                  <textarea matInput formControlName="comments" rows="3"></textarea>
-                </mat-form-field>
-                <div class="form-actions">
-                  <button mat-raised-button color="primary" type="submit" [disabled]="savingEval">
-                    @if (savingEval) { <mat-spinner diameter="18"></mat-spinner> } @else { Enregistrer }
-                  </button>
-                </div>
-              </form>
-            </mat-card-content>
-          </mat-card>
-
-          <!-- Evaluations list -->
-          @if (loadingEvals) {
-            <div class="loading-center"><mat-spinner diameter="40"></mat-spinner></div>
-          } @else if (evaluations.length === 0) {
-            <div class="empty-state"><mat-icon>rate_review</mat-icon><p>Aucune évaluation pour cette candidature.</p></div>
-          } @else {
-            <mat-card class="table-card">
-              <table mat-table [dataSource]="evaluations" class="full-width">
-                <ng-container matColumnDef="evaluator">
-                  <th mat-header-cell *matHeaderCellDef>Évaluateur</th>
-                  <td mat-cell *matCellDef="let e">{{ e.evaluatorName }}</td>
-                </ng-container>
-                <ng-container matColumnDef="score">
-                  <th mat-header-cell *matHeaderCellDef>Score</th>
-                  <td mat-cell *matCellDef="let e">{{ e.score !== null ? e.score + ' / 100' : '—' }}</td>
-                </ng-container>
-                <ng-container matColumnDef="decision">
-                  <th mat-header-cell *matHeaderCellDef>Décision</th>
-                  <td mat-cell *matCellDef="let e">
-                    @if (e.decision) {
-                      <span class="decision-badge decision-{{ e.decision.toLowerCase() }}">{{ e.decision }}</span>
-                    } @else { — }
-                  </td>
-                </ng-container>
-                <ng-container matColumnDef="comments">
-                  <th mat-header-cell *matHeaderCellDef>Commentaires</th>
-                  <td mat-cell *matCellDef="let e">{{ e.comments || '—' }}</td>
-                </ng-container>
-                <ng-container matColumnDef="createdAt">
-                  <th mat-header-cell *matHeaderCellDef>Date</th>
-                  <td mat-cell *matCellDef="let e">{{ e.createdAt | date:'dd/MM/yyyy HH:mm' }}</td>
-                </ng-container>
-                <tr mat-header-row *matHeaderRowDef="evalColumns"></tr>
-                <tr mat-row *matRowDef="let r; columns: evalColumns;"></tr>
-              </table>
             </mat-card>
           }
         }

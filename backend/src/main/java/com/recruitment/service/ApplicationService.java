@@ -93,4 +93,17 @@ public class ApplicationService {
         }
         app.setStatus(ApplicationStatus.WITHDRAWN);
     }
+
+    public record CvPathResult(java.nio.file.Path path, String fileName) {}
+
+    @Transactional(readOnly = true)
+    public CvPathResult getCvPath(Long id) {
+        var app = applicationRepository.findById(id)
+            .orElseThrow(() -> new ResourceNotFoundException("Application " + id + " not found"));
+        if (app.getCvFilePath() == null) {
+            throw new BusinessException("No CV file for this application");
+        }
+        var path = fileStorageService.loadCvPath(app.getCvFilePath());
+        return new CvPathResult(path, app.getCvFileName());
+    }
 }

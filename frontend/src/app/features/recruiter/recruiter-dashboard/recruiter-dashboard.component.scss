@@ -4,6 +4,52 @@
   padding: 24px 16px;
 }
 
+/* ── Filter bar ── */
+.filter-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 14px 16px;
+  background: #f8fafc;
+  border-radius: 14px;
+  border: 1px solid #e8ecf0;
+}
+
+.filter-search {
+  flex: 2;
+  min-width: 200px;
+  max-width: 340px;
+}
+
+.filter-status,
+.filter-offer {
+  flex: 1;
+  min-width: 160px;
+  max-width: 220px;
+}
+
+.filter-bar mat-form-field {
+  margin-bottom: -1.25em; /* remove default bottom gap */
+}
+
+.clear-filter-btn {
+  height: 40px;
+  border-radius: 20px !important;
+  font-size: 0.8rem;
+  flex-shrink: 0;
+}
+
+.result-count {
+  margin-left: auto;
+  font-size: 0.82rem;
+  color: #888;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 .page-hero {
   display: flex;
   align-items: center;
@@ -86,10 +132,21 @@
 }
 
 .table-card {
+  width: 100%;
   border-radius: 16px !important;
   overflow: hidden;
   box-shadow: 0 2px 16px rgba(0,0,0,0.07) !important;
   border: 1px solid #e8ecf0 !important;
+
+  .mat-mdc-table {
+    width: 100%;
+    min-width: 700px;
+  }
+}
+
+.table-wrapper {
+  width: 100%;
+  overflow-x: auto;
 }
 
 .link {
@@ -120,11 +177,27 @@
   &.badge-app-withdrawn            { background: #f1f5f9; color: #475569; }
 }
 
-.action-cell { white-space: nowrap; }
+.action-cell {
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px !important;
+  min-width: 340px;
+}
+
+.action-btn {
+  flex-shrink: 0;
+  height: 32px;
+  line-height: 32px;
+  font-size: 0.78rem;
+  padding: 0 10px;
+  mat-icon { font-size: 16px; height: 16px; width: 16px; margin-right: 3px; }
+}
 
 .status-select {
-  min-width: 180px;
-  font-size: 0.875rem;
+  width: 150px;
+  font-size: 0.8rem;
 }
 
 .tab-badge {
@@ -158,8 +231,6 @@
   mat-icon { font-size: 56px; height: 56px; width: 56px; margin-bottom: 10px; opacity: 0.4; }
   p { color: #64748b; margin: 0; }
 }
-
-.eval-app-select { min-width: 320px; }
 
 .eval-form {
   display: flex;

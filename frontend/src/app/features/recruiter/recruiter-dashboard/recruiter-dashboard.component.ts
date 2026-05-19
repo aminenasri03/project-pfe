@@ -1,7 +1,7 @@
 import { Component, OnInit, inject, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterModule } from '@angular/router';
-import { ReactiveFormsModule, FormBuilder, Validators, FormGroup } from '@angular/forms';
+import { RouterModule, Router } from '@angular/router';
+import { ReactiveFormsModule, FormsModule, FormBuilder, Validators, FormGroup } from '@angular/forms';
 import { forkJoin } from 'rxjs';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
@@ -17,11 +17,9 @@ import { MatTabsModule } from '@angular/material/tabs';
 import { MatBadgeModule } from '@angular/material/badge';
 import { OfferService } from '../../../core/services/offer.service';
 import { ApplicationService } from '../../../core/services/application.service';
-import { EvaluationService } from '../../../core/services/evaluation.service';
 import { InterviewService } from '../../../core/services/interview.service';
 import { JobOffer, OfferStatus } from '../../../core/models/offer.model';
 import { Application } from '../../../core/models/application.model';
-import { Evaluation } from '../../../core/models/evaluation.model';
 import { ConfirmDialogComponent } from '../../../shared/confirm-dialog/confirm-dialog.component';
 
 @Component({
@@ -31,6 +29,7 @@ import { ConfirmDialogComponent } from '../../../shared/confirm-dialog/confirm-d
     CommonModule,
     RouterModule,
     ReactiveFormsModule,
+    FormsModule,
     MatCardModule,
     MatButtonModule,
     MatIconModule,
@@ -58,13 +57,33 @@ export class RecruiterDashboardComponent implements OnInit {
   offerColumns = ['title', 'department', 'status', 'createdAt', 'actions'];
   appColumns = ['candidate', 'offer', 'appliedAt', 'status', 'actions'];
 
-  // Evaluations state
-  selectedAppId: number | null = null;
-  evaluations: Evaluation[] = [];
-  loadingEvals = false;
-  savingEval = false;
-  evalColumns = ['evaluator', 'score', 'decision', 'comments', 'createdAt'];
-  evalForm!: FormGroup;
+  // Filter state
+  filterSearch = '';
+  filterStatus = '';
+  filterOfferId: number | null = null;
+
+  get filteredApplications(): Application[] {
+    const search = this.filterSearch.toLowerCase().trim();
+    return this.applications.filter(a => {
+      const matchSearch = !search ||
+        a.candidateFullName.toLowerCase().includes(search) ||
+        a.offerTitle.toLowerCase().includes(search) ||
+        a.candidateEmail.toLowerCase().includes(search);
+      const matchStatus = !this.filterStatus || a.status === this.filterStatus;
+      const matchOffer = !this.filterOfferId || a.offerId === this.filterOfferId;
+      return matchSearch && matchStatus && matchOffer;
+    });
+  }
+
+  get activeFilterCount(): number {
+    return (this.filterSearch ? 1 : 0) + (this.filterStatus ? 1 : 0) + (this.filterOfferId ? 1 : 0);
+  }
+
+  clearFilters() {
+    this.filterSearch = '';
+    this.filterStatus = '';
+    this.filterOfferId = null;
+  }
 
   // Interview scheduling state
   interviewTargetApp: Application | null = null;
@@ -86,11 +105,11 @@ export class RecruiterDashboardComponent implements OnInit {
 
   private offerService = inject(OfferService);
   private appService = inject(ApplicationService);
-  private evalService = inject(EvaluationService);
   private interviewService = inject(InterviewService);
   private fb = inject(FormBuilder);
   private snack = inject(MatSnackBar);
   private dialog = inject(MatDialog);
+  private router = inject(Router);
   private cdr = inject(ChangeDetectorRef);
 
   constructor() {
@@ -102,11 +121,6 @@ export class RecruiterDashboardComponent implements OnInit {
       requiredSkills: [''],
       description: ['', Validators.required],
       closesAt: [null as string | null]
-    });
-    this.evalForm = this.fb.group({
-      score: [null],
-      comments: [''],
-      decision: ['']
     });
     this.interviewForm = this.fb.group({
       scheduledAt: ['', Validators.required],
@@ -248,42 +262,13 @@ export class RecruiterDashboardComponent implements OnInit {
     return this.applications.filter(a => a.status === 'SUBMITTED').length;
   }
 
-  loadEvaluations() {
-    if (!this.selectedAppId) return;
-    this.loadingEvals = true;
-    this.evalService.getByApplication(this.selectedAppId).subscribe({
-      next: (evals) => { this.evaluations = evals; this.loadingEvals = false; this.cdr.detectChanges(); },
-      error: () => { this.loadingEvals = false; this.cdr.detectChanges(); }
-    });
-  }
-
-  submitEvaluation() {
-    if (!this.selectedAppId) return;
-    this.savingEval = true;
-    const v = this.evalForm.value;
-    const req = {
-      applicationId: this.selectedAppId,
-      score: v.score !== null && v.score !== '' ? Number(v.score) : undefined,
-      comments: v.comments || undefined,
-      decision: v.decision || undefined
-    };
-    this.evalService.create(req).subscribe({
-      next: () => {
-        this.savingEval = false;
-        this.evalForm.reset({ score: null, comments: '', decision: '' });
-        this.snack.open('Évaluation enregistrée.', 'OK', { duration: 3000 });
-        this.loadEvaluations();
-      },
-      error: (err: { error?: { message?: string } }) => {
-        this.savingEval = false;
-        this.snack.open(err.error?.message ?? 'Erreur.', 'OK', { duration: 3000 });
-      }
-    });
-  }
-
   openInterviewForm(app: Application) {
     this.interviewTargetApp = app;
     this.interviewForm.reset({ scheduledAt: '', mode: 'VIDEO', location: '', notes: '' });
+  }
+
+  viewApplication(app: Application) {
+    this.router.navigate(['/recruiter/application', app.id]);
   }
 
   submitInterview() {

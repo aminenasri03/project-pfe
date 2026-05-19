@@ -1,0 +1,200 @@
+<div class="detail-page">
+
+  <!-- Back button + title -->
+  <div class="page-header">
+    <button mat-icon-button (click)="goBack()" class="back-btn" title="Retour">
+      <mat-icon>arrow_back</mat-icon>
+    </button>
+    <div class="page-title">
+      @if (application) {
+        <h1><mat-icon>person</mat-icon> {{ application.candidateFullName }}</h1>
+        <p>Candidature pour <strong>{{ application.offerTitle }}</strong></p>
+      } @else {
+        <h1>Candidature</h1>
+      }
+    </div>
+  </div>
+
+  @if (loadingApp) {
+    <div class="loading-center"><mat-spinner diameter="48"></mat-spinner></div>
+  } @else if (application) {
+
+    <!-- Info cards row -->
+    <div class="info-row">
+      <mat-card class="info-card">
+        <mat-card-content>
+          <div class="info-icon-wrap accent"><mat-icon>email</mat-icon></div>
+          <div class="info-label">Email</div>
+          <div class="info-value">{{ application.candidateEmail }}</div>
+        </mat-card-content>
+      </mat-card>
+      <mat-card class="info-card">
+        <mat-card-content>
+          <div class="info-icon-wrap primary"><mat-icon>calendar_today</mat-icon></div>
+          <div class="info-label">Date de candidature</div>
+          <div class="info-value">{{ application.submittedAt | date:'dd/MM/yyyy à HH:mm' }}</div>
+        </mat-card-content>
+      </mat-card>
+      <mat-card class="info-card">
+        <mat-card-content>
+          <div class="info-icon-wrap success"><mat-icon>analytics</mat-icon></div>
+          <div class="info-label">Score matching</div>
+          <div class="info-value score">
+            {{ application.matchingScore != null ? (application.matchingScore | number:'1.0-0') + ' / 100' : '—' }}
+          </div>
+        </mat-card-content>
+      </mat-card>
+      <mat-card class="info-card status-card">
+        <mat-card-content>
+          <div class="info-icon-wrap warn"><mat-icon>flag</mat-icon></div>
+          <div class="info-label">Statut</div>
+          <span class="badge badge-app-{{ application.status.toLowerCase() }}">
+            {{ statusLabel(application.status) }}
+          </span>
+        </mat-card-content>
+      </mat-card>
+    </div>
+
+    <div class="two-col-layout">
+
+      <!-- LEFT: Application details -->
+      <div class="left-col">
+
+        <!-- Change status -->
+        <mat-card class="section-card">
+          <mat-card-header>
+            <mat-card-title><mat-icon>edit</mat-icon> Modifier le statut</mat-card-title>
+          </mat-card-header>
+          <mat-card-content>
+            <div class="status-row">
+              @for (s of applicationStatuses; track s.value) {
+                <button mat-stroked-button
+                  [class.active-status]="application.status === s.value"
+                  (click)="updateStatus(s.value)">
+                  {{ s.label }}
+                </button>
+              }
+            </div>
+          </mat-card-content>
+        </mat-card>
+
+        <!-- CV -->
+        @if (application.cvFileName) {
+          <mat-card class="section-card">
+            <mat-card-header>
+              <mat-card-title><mat-icon>description</mat-icon> Curriculum Vitae</mat-card-title>
+            </mat-card-header>
+            <mat-card-content>
+              <div class="cv-block">
+                <mat-icon class="cv-icon">picture_as_pdf</mat-icon>
+                <div class="cv-meta">
+                  <span class="cv-filename">{{ application.cvFileName }}</span>
+                  <span class="cv-hint">Cliquez pour télécharger</span>
+                </div>
+                <button mat-raised-button color="primary" (click)="downloadCv()" [disabled]="downloadingCv">
+                  @if (downloadingCv) { <mat-spinner diameter="18"></mat-spinner> }
+                  @else { <mat-icon>download</mat-icon> Télécharger }
+                </button>
+              </div>
+            </mat-card-content>
+          </mat-card>
+        }
+
+        <!-- Cover letter -->
+        @if (application.coverLetter) {
+          <mat-card class="section-card">
+            <mat-card-header>
+              <mat-card-title><mat-icon>mail_outline</mat-icon> Lettre de motivation</mat-card-title>
+            </mat-card-header>
+            <mat-card-content>
+              <p class="cover-letter-text">{{ application.coverLetter }}</p>
+            </mat-card-content>
+          </mat-card>
+        }
+
+      </div>
+
+      <!-- RIGHT: Evaluations -->
+      <div class="right-col">
+
+        <!-- Add evaluation form -->
+        <mat-card class="section-card">
+          <mat-card-header>
+            <mat-card-title><mat-icon>rate_review</mat-icon> Ajouter une évaluation</mat-card-title>
+          </mat-card-header>
+          <mat-card-content>
+            <form [formGroup]="evalForm" (ngSubmit)="submitEvaluation()" class="eval-form">
+              <div class="form-row">
+                <mat-form-field appearance="outline" class="flex1">
+                  <mat-label>Score (0–100)</mat-label>
+                  <input matInput type="number" formControlName="score" min="0" max="100">
+                </mat-form-field>
+                <mat-form-field appearance="outline" class="flex1">
+                  <mat-label>Décision</mat-label>
+                  <mat-select formControlName="decision">
+                    <mat-option value="">— Aucune —</mat-option>
+                    <mat-option value="HIRE">Recruter</mat-option>
+                    <mat-option value="REJECT">Refuser</mat-option>
+                    <mat-option value="HOLD">En attente</mat-option>
+                  </mat-select>
+                </mat-form-field>
+              </div>
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Commentaires</mat-label>
+                <textarea matInput formControlName="comments" rows="3"></textarea>
+              </mat-form-field>
+              <div class="form-actions">
+                <button mat-raised-button color="primary" type="submit" [disabled]="savingEval">
+                  @if (savingEval) { <mat-spinner diameter="18"></mat-spinner> }
+                  @else { <mat-icon>save</mat-icon> Enregistrer }
+                </button>
+              </div>
+            </form>
+          </mat-card-content>
+        </mat-card>
+
+        <!-- Evaluations list -->
+        <mat-card class="section-card">
+          <mat-card-header>
+            <mat-card-title><mat-icon>list_alt</mat-icon> Évaluations ({{ evaluations.length }})</mat-card-title>
+          </mat-card-header>
+          <mat-card-content>
+            @if (loadingEvals) {
+              <div class="loading-center"><mat-spinner diameter="32"></mat-spinner></div>
+            } @else if (evaluations.length === 0) {
+              <div class="empty-evals">
+                <mat-icon>rate_review</mat-icon>
+                <p>Aucune évaluation pour l'instant.</p>
+              </div>
+            } @else {
+              <div class="eval-list">
+                @for (e of evaluations; track e.id) {
+                  <div class="eval-item">
+                    <div class="eval-header">
+                      <span class="eval-author"><mat-icon>person</mat-icon> {{ e.evaluatorName }}</span>
+                      <span class="eval-date">{{ e.createdAt | date:'dd/MM/yyyy' }}</span>
+                    </div>
+                    <div class="eval-body">
+                      @if (e.score != null) {
+                        <span class="eval-score">{{ e.score }}/100</span>
+                      }
+                      @if (e.decision) {
+                        <span class="decision-badge decision-{{ e.decision.toLowerCase() }}">
+                          {{ e.decision === 'HIRE' ? 'Recruter' : e.decision === 'REJECT' ? 'Refuser' : 'En attente' }}
+                        </span>
+                      }
+                    </div>
+                    @if (e.comments) {
+                      <p class="eval-comments">{{ e.comments }}</p>
+                    }
+                  </div>
+                }
+              </div>
+            }
+          </mat-card-content>
+        </mat-card>
+
+      </div>
+    </div>
+  }
+</div>

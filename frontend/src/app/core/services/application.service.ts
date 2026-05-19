@@ -47,4 +47,12 @@ export class ApplicationService {
   withdraw(id: number) {
     return this.http.delete<void>(`${this.base}/applications/${id}`);
   }
+
+  /** GET /api/applications/{id}/cv → blob (JWT token sent via interceptor) */
+  downloadCv(applicationId: number) {
+    return this.http.get(`${this.base}/applications/${applicationId}/cv`, {
+      responseType: 'blob',
+      observe: 'response'
+    });
+  }
 }

@@ -65,4 +65,15 @@ public class FileStorageService {
     }
 
     public record StoredFile(String absolutePath, String originalName) {}
+
+    public Path loadCvPath(String absolutePath) {
+        Path file = Paths.get(absolutePath).normalize();
+        if (!file.startsWith(baseDir)) {
+            throw new BusinessException("Access denied");
+        }
+        if (!Files.exists(file)) {
+            throw new BusinessException("File not found");
+        }
+        return file;
+    }
 }
