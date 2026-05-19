@@ -1,0 +1,87 @@
+<div class="cv-analysis-container">
+  <h2>Analyse de CV par IA</h2>
+
+  <div class="form-section">
+    <div class="form-group">
+      <label for="cvFile">Importer le CV (PDF, DOC, DOCX)</label>
+      <div class="file-upload-area" (click)="fileInput.click()"
+           (dragover)="$event.preventDefault()"
+           (drop)="$event.preventDefault(); onFileSelected($event)">
+        <input #fileInput type="file" id="cvFile" accept=".pdf,.doc,.docx"
+               (change)="onFileSelected($event)" hidden />
+        @if (cvFileName) {
+          <div class="file-selected">
+            <span class="file-icon">📄</span>
+            <span class="file-name">{{ cvFileName }}</span>
+          </div>
+        } @else {
+          <div class="file-placeholder">
+            <span class="upload-icon">⬆️</span>
+            <span>Cliquez ou glissez un fichier CV ici</span>
+            <span class="file-formats">PDF, DOC, DOCX — Max 10 MB</span>
+          </div>
+        }
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="jobDesc">Description de l'offre d'emploi</label>
+      <textarea
+        id="jobDesc"
+        [(ngModel)]="jobDescription"
+        rows="6"
+        placeholder="Collez la description du poste ici..."
+      ></textarea>
+    </div>
+
+    <button class="btn-analyze" (click)="analyze()" [disabled]="loading">
+      {{ loading ? 'Analyse en cours...' : 'Analyser le CV' }}
+    </button>
+
+    @if (error) {
+      <div class="error-message">{{ error }}</div>
+    }
+  </div>
+
+  @if (result) {
+    <div class="result-section">
+      <h3>Résultat de l'analyse</h3>
+
+      <div class="result-header">
+        <div class="candidate-name">
+          <span class="label">Candidat :</span>
+          <span class="value">{{ result.name }}</span>
+        </div>
+        <div class="score-badge" [class.accepted]="result.decision === 'ACCEPTED'" [class.rejected]="result.decision === 'REJECTED'">
+          <span class="score">{{ result.score }}/100</span>
+          <span class="decision">{{ result.decision === 'ACCEPTED' ? 'ACCEPTÉ' : 'REFUSÉ' }}</span>
+        </div>
+      </div>
+
+      <div class="score-bar-container">
+        <div class="score-bar" [style.width.%]="result.score"
+             [class.high]="result.score >= 70"
+             [class.medium]="result.score >= 40 && result.score < 70"
+             [class.low]="result.score < 40">
+        </div>
+      </div>
+
+      <div class="skills-section">
+        <h4>Compétences détectées</h4>
+        <div class="skills-list">
+          @for (skill of result.skills; track skill) {
+            <span class="skill-tag">{{ skill }}</span>
+          }
+          @empty {
+            <span class="no-skills">Aucune compétence détectée</span>
+          }
+        </div>
+      </div>
+
+      <div class="justification-section">
+        <h4>Justification</h4>
+        <p>{{ result.justification }}</p>
+      </div>
+    </div>
+  }
+</div>

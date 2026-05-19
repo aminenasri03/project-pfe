@@ -95,7 +95,48 @@
                   @if (downloadingCv) { <mat-spinner diameter="18"></mat-spinner> }
                   @else { <mat-icon>download</mat-icon> Télécharger }
                 </button>
+                <button mat-raised-button color="accent" (click)="analyzeCv()" [disabled]="analyzingCv">
+                  @if (analyzingCv) { <mat-spinner diameter="18"></mat-spinner> }
+                  @else { <mat-icon>psychology</mat-icon> Analyser CV }
+                </button>
               </div>
+
+              @if (cvAnalysisResult) {
+                <div class="analysis-result">
+                  <h4><mat-icon>analytics</mat-icon> Résultat de l'analyse IA</h4>
+                  <div class="analysis-header">
+                    <div class="analysis-candidate">
+                      <span class="label">Candidat :</span> {{ cvAnalysisResult.name }}
+                    </div>
+                    <div class="analysis-score-badge"
+                         [class.accepted]="cvAnalysisResult.decision === 'ACCEPTED'"
+                         [class.rejected]="cvAnalysisResult.decision === 'REJECTED'">
+                      <span class="score-value">{{ cvAnalysisResult.score }}/100</span>
+                      <span class="decision-label">{{ cvAnalysisResult.decision === 'ACCEPTED' ? 'ACCEPTÉ' : 'REFUSÉ' }}</span>
+                    </div>
+                  </div>
+                  <div class="analysis-bar-container">
+                    <div class="analysis-bar"
+                         [style.width.%]="cvAnalysisResult.score"
+                         [class.high]="cvAnalysisResult.score >= 70"
+                         [class.medium]="cvAnalysisResult.score >= 40 && cvAnalysisResult.score < 70"
+                         [class.low]="cvAnalysisResult.score < 40">
+                    </div>
+                  </div>
+                  <div class="analysis-skills">
+                    <strong>Compétences détectées :</strong>
+                    <div class="skills-chips">
+                      @for (skill of cvAnalysisResult.skills; track skill) {
+                        <span class="skill-chip">{{ skill }}</span>
+                      }
+                    </div>
+                  </div>
+                  <div class="analysis-justification">
+                    <strong>Justification :</strong>
+                    <p>{{ cvAnalysisResult.justification }}</p>
+                  </div>
+                </div>
+              }
             </mat-card-content>
           </mat-card>
         }

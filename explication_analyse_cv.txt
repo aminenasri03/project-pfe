@@ -1,0 +1,791 @@
+================================================================================
+    MODULE D'ANALYSE INTELLIGENTE DES CV — EXPLICATION DÉTAILLÉE DU CODE
+================================================================================
+
+Date : 19/05/2026
+Projet : Plateforme de Recrutement (PFE)
+Technologies : Spring Boot 3.5 (Java 21) + Angular 19 + Apache PDFBox 3.0.4
+
+================================================================================
+1. ARCHITECTURE GLOBALE
+================================================================================
+
+Le module d'analyse des CV est un système NLP (Natural Language Processing)
+basé sur du keyword-matching. Il extrait le texte d'un fichier CV (PDF ou DOCX),
+détecte les compétences techniques, les compare avec les compétences requises
+par l'offre d'emploi, et calcule un score de compatibilité de 0 à 100.
+
+Flux de données :
+  1. Le recruteur clique "Analyser CV" sur la page de détail d'une candidature
+  2. Angular envoie POST /api/cv/analyze-application/{id} au backend
+  3. Le contrôleur appelle CvAnalysisService.analyzeApplication(id)
+  4. Le service charge la candidature + l'offre depuis la base de données
+  5. CvTextExtractorService extrait le texte du fichier CV (PDF/DOCX)
+  6. Le texte est analysé : extraction du nom, détection des compétences
+  7. Les compétences du CV sont comparées avec celles de l'offre
+  8. Un score (0-100) et une décision (ACCEPTED/REJECTED) sont calculés
+  9. Le résultat JSON est renvoyé au frontend pour affichage
+
+Fichiers impliqués :
+  BACKEND :
+    - dto/cv/CvAnalysisRequest.java       → DTO d'entrée (texte CV + offre)
+    - dto/cv/CvAnalysisResponse.java      → DTO de sortie (nom, score, skills...)
+    - service/CvTextExtractorService.java  → Extraction de texte PDF/DOCX
+    - service/CvAnalysisService.java       → Logique NLP : matching + scoring
+    - controller/CvAnalysisController.java → Endpoints REST
+
+  FRONTEND :
+    - core/models/cv-analysis.model.ts     → Interfaces TypeScript
+    - core/services/cv-analysis.service.ts → Service HTTP Angular
+    - features/recruiter/application-detail → Composant UI (bouton + résultats)
+
+
+================================================================================
+2. DTOs — OBJETS DE TRANSFERT DE DONNÉES
+================================================================================
+
+--- CvAnalysisRequest.java ---------------------------------------------------
+
+    public record CvAnalysisRequest(
+        @NotBlank String cvText,
+        @NotBlank String jobDescription
+    ) {}
+
+  • C'est un Java Record (immuable, concis, auto-génère equals/hashCode/toString)
+  • Deux champs :
+    - cvText : le texte brut extrait du CV (après conversion PDF → texte)
+    - jobDescription : le texte de l'offre d'emploi (titre + description + skills)
+  • @NotBlank : validation Jakarta — les deux champs sont obligatoires et non vides
+  • Ce DTO est utilisé en interne (pas exposé directement à l'API REST)
+
+--- CvAnalysisResponse.java --------------------------------------------------
+
+    public record CvAnalysisResponse(
+        String name,
+        int score,
+        String decision,
+        List<String> skills,
+        String justification
+    ) {}
+
+  • Résultat renvoyé au frontend en JSON, contient :
+    - name : nom du candidat extrait du CV (ex: "Ahmed Benali")
+    - score : score de compatibilité de 0 à 100 (entier)
+    - decision : "ACCEPTED" si score >= 70, "REJECTED" sinon
+    - skills : liste des compétences détectées dans le CV
+    - justification : texte explicatif du score en français
+
+
+================================================================================
+3. CvTextExtractorService.java — EXTRACTION DE TEXTE
+================================================================================
+
+Ce service convertit un fichier binaire (PDF ou DOCX) en texte brut lisible.
+
+--- Méthode extract(MultipartFile file) ---------------------------------------
+
+    public String extract(MultipartFile file) throws IOException {
+        String filename = file.getOriginalFilename();
+        if (filename == null) {
+            throw new IllegalArgumentException("Le fichier n'a pas de nom.");
+        }
+        return extractByExtension(file.getBytes(), filename);
+    }
+
+  • Reçoit un fichier uploadé via HTTP multipart
+  • Récupère le nom original du fichier pour déterminer son extension
+  • Convertit le fichier en tableau d'octets (byte[]) et délègue l'extraction
+
+--- Méthode extractFromPath(Path filePath, String fileName) --------------------
+
+    public String extractFromPath(Path filePath, String fileName) throws IOException {
+        byte[] bytes = Files.readAllBytes(filePath);
+        return extractByExtension(bytes, fileName);
+    }
+
+  • Variante pour les fichiers déjà stockés sur le serveur (candidatures existantes)
+  • Lit le fichier depuis le disque via son chemin absolu
+
+--- Méthode extractByExtension(byte[] bytes, String filename) ------------------
+
+    private String extractByExtension(byte[] bytes, String filename) throws IOException {
+        String lower = filename.toLowerCase();
+        if (lower.endsWith(".pdf")) {
+            return extractFromPdf(bytes);
+        } else if (lower.endsWith(".docx")) {
+            return extractFromDocx(bytes);
+        } else {
+            throw new IllegalArgumentException(
+                "Format non supporté. Formats acceptés : PDF, DOCX."
+            );
+        }
+    }
+
+  • Aiguillage selon l'extension du fichier (.pdf ou .docx)
+  • Rejette les autres formats avec un message d'erreur clair
+
+--- Méthode extractFromPdf(byte[] data) — EXTRACTION PDF ----------------------
+
+    private String extractFromPdf(byte[] data) throws IOException {
+        try (PDDocument document = Loader.loadPDF(data)) {
+            PDFTextStripper stripper = new PDFTextStripper();
+            String text = stripper.getText(document);
+            log.debug("Extracted {} characters from PDF", text.length());
+            return text.trim();
+        }
+    }
+
+  EXPLICATION DÉTAILLÉE :
+
+  1. Loader.loadPDF(data) :
+     - Classe d'Apache PDFBox 3.0.4
+     - Charge le PDF depuis un tableau d'octets en mémoire
+     - Analyse la structure interne du PDF (pages, polices, encodages)
+     - Retourne un objet PDDocument qui représente le document complet
+
+  2. new PDFTextStripper() :
+     - Outil principal de PDFBox pour l'extraction de texte
+     - Parcourt chaque page du PDF
+     - Décode les glyphes (caractères graphiques) en utilisant les tables
+       d'encodage des polices intégrées dans le PDF
+     - Reconstitue l'ordre de lecture des caractères (gauche→droite, haut→bas)
+     - Gère les polices Unicode, les caractères accentués (é, è, à, ç, etc.)
+
+  3. stripper.getText(document) :
+     - Parcourt TOUTES les pages du document
+     - Retourne le texte brut complet avec les sauts de ligne préservés
+
+  4. try-with-resources :
+     - Le PDDocument est auto-fermé à la fin du bloc
+     - Libère la mémoire utilisée par le document PDF
+
+  POURQUOI PDFBox ?
+  - Les PDF ne contiennent PAS du texte brut, ils contiennent des instructions
+    graphiques ("dessine le glyphe 72 à la position x=100, y=200")
+  - Sans PDFBox, on obtient des codes de glyphes illisibles
+  - PDFBox utilise les tables CMap et les dictionnaires de polices du PDF
+    pour convertir les identifiants de glyphes en vrais caractères Unicode
+
+--- Méthode extractFromDocx(byte[] data) — EXTRACTION DOCX --------------------
+
+    private String extractFromDocx(byte[] data) throws IOException {
+        try (ZipInputStream zis = new ZipInputStream(new ByteArrayInputStream(data))) {
+            ZipEntry entry;
+            while ((entry = zis.getNextEntry()) != null) {
+                if ("word/document.xml".equals(entry.getName())) {
+                    String xml = new String(zis.readAllBytes(), StandardCharsets.UTF_8);
+                    xml = xml.replaceAll("<w:p[^>]*>", "\n");       // paragraphes → \n
+                    xml = xml.replaceAll("<w:br[^>]*/>", "\n");     // sauts de ligne
+                    xml = xml.replaceAll("<w:tab[^>]*/>", "\t");    // tabulations
+                    String text = xml.replaceAll("<[^>]+>", "").trim(); // supprime le XML
+                    text = text.replaceAll("\\n{3,}", "\n\n");     // nettoie les \n
+                    return text;
+                }
+            }
+        }
+        throw new IllegalArgumentException("Fichier DOCX invalide.");
+    }
+
+  EXPLICATION DÉTAILLÉE :
+
+  1. Un fichier .docx est en réalité une archive ZIP contenant des fichiers XML
+  2. Le contenu textuel se trouve dans "word/document.xml"
+  3. On parcourt l'archive ZIP pour trouver ce fichier
+  4. On lit le XML en UTF-8
+  5. Les balises <w:p> (paragraphes) sont remplacées par des sauts de ligne
+  6. Les balises <w:br/> et <w:tab/> sont converties en \n et \t
+  7. Toutes les balises XML restantes sont supprimées par regex <[^>]+>
+  8. Le résultat est du texte brut propre
+
+
+================================================================================
+4. CvAnalysisService.java — LOGIQUE D'ANALYSE ET MATCHING
+================================================================================
+
+C'est le cœur du module IA. Ce service contient toute la logique de :
+  - Extraction du nom du candidat
+  - Détection des compétences techniques
+  - Calcul du score de compatibilité
+  - Génération de la justification
+
+--- DICTIONNAIRE DE COMPÉTENCES (KNOWN_SKILLS) --------------------------------
+
+    private static final Set<String> KNOWN_SKILLS = Set.of(
+        // Programming languages
+        "java", "python", "javascript", "typescript", "c++", "c#", ...
+        // Frontend
+        "angular", "react", "vue", "vue.js", "react.js", "next.js", ...
+        // Backend & Frameworks
+        "spring", "spring boot", "spring security", "hibernate", "jpa", ...
+        // Databases
+        "sql", "mysql", "postgresql", "mongodb", "redis", ...
+        // DevOps & Cloud
+        "docker", "kubernetes", "aws", "azure", "jenkins", ...
+        // Data & AI/ML
+        "machine learning", "deep learning", "tensorflow", "pytorch", ...
+        // Tools & Practices
+        "git", "agile", "scrum", "microservices", "rest", "graphql", ...
+        // Security
+        "oauth", "jwt", "ssl", "keycloak", ...
+        // Mobile
+        "android", "ios", "flutter", "react native", ...
+        // Testing
+        "junit", "mockito", "selenium", "cypress", "jest", ...
+    );
+
+  • Contient environ 150 compétences techniques connues
+  • Organisé par catégories pour faciliter la maintenance
+  • Inclut des compétences multi-mots : "spring boot", "machine learning"
+  • Inclut des compétences avec points : "vue.js", "node.js"
+  • Utilisé comme dictionnaire de référence pour la détection
+
+--- SÉPARATION MULTI-MOTS / MONO-MOT ------------------------------------------
+
+    static {
+        MULTI_WORD_SKILLS = KNOWN_SKILLS.stream()
+            .filter(s -> s.contains(" ") || s.contains(".") || s.contains("/"))
+            .sorted(Comparator.comparingInt(String::length).reversed())
+            .toList();
+
+        SINGLE_WORD_SKILLS = KNOWN_SKILLS.stream()
+            .filter(s -> !s.contains(" ") && !s.contains(".") && !s.contains("/"))
+            .collect(Collectors.toSet());
+    }
+
+  EXPLICATION :
+  • MULTI_WORD_SKILLS : compétences contenant des espaces, points ou slashs
+    Exemples : "spring boot", "react.js", "ci/cd"
+    → Triées par longueur décroissante pour que les correspondances les plus
+      longues soient testées en premier ("spring security" avant "spring")
+
+  • SINGLE_WORD_SKILLS : compétences d'un seul mot
+    Exemples : "java", "python", "docker"
+    → Stockées dans un Set pour recherche rapide O(1)
+
+  POURQUOI CETTE SÉPARATION ?
+  • Les compétences multi-mots doivent être cherchées EN PREMIER
+  • Sinon, "spring" serait trouvé dans "spring boot" et "boot" resterait seul
+  • Après chaque match multi-mot, le texte correspondant est remplacé par
+    un espace pour éviter les double-détections
+
+--- Méthode analyze(CvAnalysisRequest request) — POINT D'ENTRÉE ---------------
+
+    public CvAnalysisResponse analyze(CvAnalysisRequest request) {
+        String cvLower = request.cvText().toLowerCase();
+        String jobLower = request.jobDescription().toLowerCase();
+
+        String name = extractName(request.cvText());
+        List<String> cvSkills = extractSkills(cvLower);
+        List<String> jobSkills = extractSkills(jobLower);
+
+        int score = calculateScore(cvSkills, jobSkills);
+        String decision = score >= 70 ? "ACCEPTED" : "REJECTED";
+        String justification = buildJustification(cvSkills, jobSkills, score);
+
+        return new CvAnalysisResponse(name, score, decision, cvSkills, justification);
+    }
+
+  ÉTAPES :
+  1. Conversion en minuscules pour une comparaison insensible à la casse
+     → "Java" et "JAVA" et "java" sont tous reconnus
+  2. Extraction du nom depuis le texte ORIGINAL (avec majuscules préservées)
+  3. Détection des compétences dans le CV (texte en minuscules)
+  4. Détection des compétences dans l'offre d'emploi
+  5. Calcul du score : (compétences communes / compétences requises) × 100
+  6. Décision : ACCEPTED si score >= 70, sinon REJECTED
+  7. Construction d'un texte justificatif en français
+
+--- Méthode extractName(String cvText) — EXTRACTION DU NOM --------------------
+
+    String extractName(String cvText) {
+        String[] lines = cvText.split("\\r?\\n");
+        Pattern namePattern = Pattern.compile(
+            "^([A-ZÀ-ÖØ-Ý][a-zà-öø-ÿ]+(?:\\s+[A-ZÀ-ÖØ-Ý][a-zà-öø-ÿ]+){1,3})$"
+        );
+        for (String line : lines) {
+            String trimmed = line.trim();
+            if (trimmed.isEmpty()) continue;
+
+            Matcher matcher = namePattern.matcher(trimmed);
+            if (matcher.matches()) {
+                return matcher.group(1);
+            }
+
+            if (trimmed.length() < 60 && !trimmed.contains("@")
+                && !trimmed.contains(":")) {
+                String[] words = trimmed.split("\\s+");
+                if (words.length >= 2 && words.length <= 4) {
+                    boolean allCapitalized = Arrays.stream(words)
+                        .allMatch(w -> w.length() > 1
+                            && Character.isUpperCase(w.charAt(0)));
+                    if (allCapitalized) {
+                        return trimmed;
+                    }
+                }
+            }
+        }
+        return "Unknown";
+    }
+
+  ALGORITHME D'EXTRACTION DU NOM :
+
+  1. Le CV est découpé ligne par ligne
+  2. Premier essai — regex stricte :
+     • Cherche une ligne composée de 2 à 4 mots capitalisés
+     • Chaque mot commence par une majuscule (incluant les accents : À-Ý)
+     • Suivi de lettres minuscules (incluant les accents : à-ÿ)
+     • Exemple qui matche : "Ahmed Benali", "Marie Claire Dupont"
+     • Ne matche PAS : "AHMED BENALI" (tout en majuscules)
+
+  3. Deuxième essai — heuristique souple :
+     • La ligne fait moins de 60 caractères
+     • Ne contient pas @ (exclut les adresses email)
+     • Ne contient pas : (exclut les titres type "Nom : Ahmed")
+     • Contient 2 à 4 mots dont chacun commence par une majuscule
+     • Exemple qui matche : "KUSSAY NASRI", "Jean Pierre MARTIN"
+
+  4. Si aucune ligne ne correspond → retourne "Unknown"
+
+  NOTE : Cette méthode est heuristique — elle fonctionne bien pour les CV
+  classiques où le nom apparaît en haut du document.
+
+--- Méthode extractSkills(String text) — DÉTECTION DES COMPÉTENCES -------------
+
+    List<String> extractSkills(String text) {
+        Set<String> found = new LinkedHashSet<>();
+        String remaining = text;
+
+        // Première passe : compétences multi-mots / avec points
+        for (String skill : MULTI_WORD_SKILLS) {
+            if (remaining.contains(skill)) {
+                found.add(skill);
+                remaining = remaining.replace(skill, " ");
+            }
+        }
+
+        // Deuxième passe : compétences mono-mot avec frontières de mots
+        for (String skill : SINGLE_WORD_SKILLS) {
+            if (skill.length() < 2) continue;
+            Pattern p = Pattern.compile("\\b" + Pattern.quote(skill) + "\\b");
+            if (p.matcher(remaining).find()) {
+                found.add(skill);
+            }
+        }
+
+        return new ArrayList<>(found);
+    }
+
+  ALGORITHME EN DEUX PASSES :
+
+  PASSE 1 — Compétences multi-mots (ordonnées par longueur décroissante) :
+    • Parcourt la liste triée : "ruby on rails" (14 chars) → ... → "c#" (2 chars)
+    • Pour chaque compétence, vérifie si elle apparaît dans le texte
+    • Si trouvée :
+      - Ajoutée à l'ensemble "found" (LinkedHashSet préserve l'ordre)
+      - Remplacée par un espace dans le texte restant
+      - Cela ÉVITE qu'un sous-ensemble soit détecté en doublon
+        Ex: "spring boot" est trouvé → "spring" seul ne sera plus trouvé
+            car la chaîne "spring boot" a été effacée du texte
+
+  PASSE 2 — Compétences mono-mot :
+    • Ignore les compétences de moins de 2 caractères (évite faux positifs "r")
+    • Utilise les frontières de mots regex (\b) pour des correspondances exactes
+    • Pattern.quote() échappe les caractères spéciaux ("c++" → "c\\+\\+")
+    • \b empêche "java" de matcher dans "javascript" (car "java" + "script"
+      n'a pas de frontière de mot entre les deux)
+
+  POURQUOI LinkedHashSet ?
+    • Set → pas de doublons
+    • Linked → préserve l'ordre d'insertion (plus utile pour l'affichage)
+
+--- Méthode calculateScore(cvSkills, jobSkills) — CALCUL DU SCORE --------------
+
+    int calculateScore(List<String> cvSkills, List<String> jobSkills) {
+        if (jobSkills.isEmpty()) {
+            return cvSkills.isEmpty() ? 0 : 50;
+        }
+        Set<String> cvSkillSet = new HashSet<>(cvSkills);
+        long matched = jobSkills.stream().filter(cvSkillSet::contains).count();
+        return (int) Math.round((double) matched / jobSkills.size() * 100);
+    }
+
+  FORMULE :
+    score = (nombre de compétences requises trouvées dans le CV)
+            ÷ (nombre total de compétences requises)
+            × 100
+
+  EXEMPLES :
+    • Offre demande : [java, spring boot, sql, docker, git]  → 5 compétences
+    • CV contient : [java, python, spring boot, git, angular] → 5 compétences
+    • Intersection : [java, spring boot, git]                 → 3 matches
+    • Score = 3/5 × 100 = 60
+
+  CAS SPÉCIAUX :
+    • Si l'offre n'a aucune compétence détectable :
+      - CV vide aussi → 0
+      - CV a des compétences → 50 (score neutre, évaluation manuelle suggérée)
+
+--- Méthode buildJustification(...) — GÉNÉRATION DU TEXTE EXPLICATIF -----------
+
+    String buildJustification(List<String> cvSkills, List<String> jobSkills,
+                              int score) {
+        if (jobSkills.isEmpty()) {
+            return "Aucune compétence spécifique détectée dans l'offre. " +
+                   "Évaluation manuelle recommandée.";
+        }
+        Set<String> cvSkillSet = new HashSet<>(cvSkills);
+
+        List<String> matched = jobSkills.stream()
+            .filter(cvSkillSet::contains).toList();
+        List<String> missing = jobSkills.stream()
+            .filter(s -> !cvSkillSet.contains(s)).toList();
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("Score de compatibilité : ").append(score).append("/100. ");
+        sb.append(matched.size()).append("/").append(jobSkills.size())
+          .append(" compétences requises trouvées dans le CV. ");
+
+        if (!matched.isEmpty()) {
+            sb.append("Compétences correspondantes : ")
+              .append(String.join(", ", matched)).append(". ");
+        }
+        if (!missing.isEmpty()) {
+            sb.append("Compétences manquantes : ")
+              .append(String.join(", ", missing)).append(".");
+        }
+        return sb.toString();
+    }
+
+  EXEMPLE DE SORTIE :
+    "Score de compatibilité : 60/100. 3/5 compétences requises trouvées
+     dans le CV. Compétences correspondantes : java, spring boot, git.
+     Compétences manquantes : sql, docker."
+
+  • Fournit une explication transparente de la décision
+  • Liste les compétences trouvées ET celles manquantes
+  • Permet au recruteur de comprendre pourquoi le score est tel qu'il est
+
+--- Méthode analyzeApplication(Long applicationId) — ANALYSE INTÉGRÉE ---------
+
+    @Transactional(readOnly = true)
+    public CvAnalysisResponse analyzeApplication(Long applicationId)
+            throws IOException {
+        Application app = applicationRepository.findById(applicationId)
+            .orElseThrow(() -> new ResourceNotFoundException(
+                "Application " + applicationId + " not found"));
+
+        if (app.getCvFilePath() == null) {
+            throw new BusinessException("Aucun CV attaché à cette candidature.");
+        }
+
+        var offer = app.getOffer();
+        StringBuilder jobDesc = new StringBuilder();
+        jobDesc.append(offer.getTitle()).append("\n");
+        if (offer.getDescription() != null)
+            jobDesc.append(offer.getDescription()).append("\n");
+        if (offer.getRequiredSkills() != null)
+            jobDesc.append(offer.getRequiredSkills());
+
+        Path cvPath = fileStorageService.loadCvPath(app.getCvFilePath());
+        String cvText = cvTextExtractorService.extractFromPath(
+            cvPath, app.getCvFileName());
+
+        CvAnalysisRequest request = new CvAnalysisRequest(cvText, jobDesc.toString());
+        return analyze(request);
+    }
+
+  EXPLICATION :
+
+  1. @Transactional(readOnly = true) :
+     - Ouvre une transaction Hibernate en lecture seule
+     - NÉCESSAIRE car l'entité Offer est chargée en LAZY
+     - Sans @Transactional, app.getOffer() lèverait une
+       LazyInitializationException (la session Hibernate serait fermée)
+
+  2. Chargement de la candidature :
+     - Cherche dans la base par ID
+     - Lance ResourceNotFoundException (404) si non trouvée
+
+  3. Vérification du CV :
+     - Si aucun fichier CV n'est attaché → BusinessException (400)
+
+  4. Construction de la description du poste :
+     - Concatène le titre de l'offre + sa description + les compétences requises
+     - Ce texte est analysé par extractSkills() pour trouver les compétences
+       que l'offre exige
+
+  5. Extraction du texte du CV :
+     - loadCvPath() convertit le chemin stocké en Path absolu
+     - extractFromPath() lit le fichier et extrait le texte (PDF ou DOCX)
+
+  6. Appel à analyze() :
+     - Crée un CvAnalysisRequest avec les deux textes
+     - Exécute la logique de matching complète
+
+
+================================================================================
+5. CvAnalysisController.java — ENDPOINTS REST
+================================================================================
+
+    @RestController
+    @RequestMapping("/api/cv")
+    @RequiredArgsConstructor
+    public class CvAnalysisController {
+
+        private final CvAnalysisService cvAnalysisService;
+        private final CvTextExtractorService cvTextExtractorService;
+
+  • @RestController : composant Spring qui gère les requêtes HTTP
+  • @RequestMapping("/api/cv") : tous les endpoints commencent par /api/cv
+  • @RequiredArgsConstructor : injection de dépendances via le constructeur
+
+--- Endpoint 1 : Upload et analyse d'un CV -----------------------------------
+
+    @PostMapping(value = "/analyze",
+                 consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAnyRole('ADMIN','RECRUITER')")
+    public CvAnalysisResponse analyze(
+            @RequestPart("cv") MultipartFile cvFile,
+            @RequestParam("jobDescription") String jobDescription)
+            throws IOException {
+
+        String cvText = cvTextExtractorService.extract(cvFile);
+        CvAnalysisRequest request = new CvAnalysisRequest(cvText, jobDescription);
+        return cvAnalysisService.analyze(request);
+    }
+
+  • URL : POST /api/cv/analyze
+  • Format : multipart/form-data (pour l'upload de fichier)
+  • Paramètres :
+    - cv : le fichier CV (PDF ou DOCX) en pièce jointe
+    - jobDescription : le texte de l'offre d'emploi
+  • @PreAuthorize : seuls les ADMIN et RECRUITER peuvent accéder
+  • Flux :
+    1. Extrait le texte du fichier uploadé
+    2. Crée le DTO de requête
+    3. Lance l'analyse et retourne le résultat
+
+--- Endpoint 2 : Analyse d'un CV déjà uploadé --------------------------------
+
+    @PostMapping("/analyze-application/{applicationId}")
+    @PreAuthorize("hasAnyRole('ADMIN','RECRUITER')")
+    public CvAnalysisResponse analyzeApplication(
+            @PathVariable Long applicationId) throws IOException {
+        return cvAnalysisService.analyzeApplication(applicationId);
+    }
+
+  • URL : POST /api/cv/analyze-application/{applicationId}
+  • Pas de fichier à uploader — le CV est déjà stocké sur le serveur
+  • @PathVariable : l'ID de la candidature est dans l'URL
+  • Utilisé depuis la page de détail d'une candidature (bouton "Analyser CV")
+
+
+================================================================================
+6. FRONTEND ANGULAR — INTERFACE UTILISATEUR
+================================================================================
+
+--- cv-analysis.model.ts — Interfaces TypeScript ------------------------------
+
+    export interface CvAnalysisResponse {
+      name: string;           // Nom extrait du CV
+      score: number;          // Score 0-100
+      decision: 'ACCEPTED' | 'REJECTED';  // Décision
+      skills: string[];       // Liste des compétences détectées
+      justification: string;  // Texte explicatif
+    }
+
+  • Typage fort TypeScript pour la réponse JSON du backend
+  • Le champ decision est un union type (seulement deux valeurs possibles)
+
+--- cv-analysis.service.ts — Service HTTP -------------------------------------
+
+    @Injectable({ providedIn: 'root' })
+    export class CvAnalysisService {
+      private readonly base = 'http://localhost:8080/api';
+
+      constructor(private http: HttpClient) {}
+
+      analyzeApplication(applicationId: number) {
+        return this.http.post<CvAnalysisResponse>(
+          `${this.base}/cv/analyze-application/${applicationId}`, {}
+        );
+      }
+    }
+
+  • Injectable singleton (providedIn: 'root')
+  • Utilise HttpClient d'Angular pour les appels REST
+  • analyzeApplication() : envoie un POST vide (body = {}) car le backend
+    n'a besoin que de l'ID dans l'URL
+  • Le JWT est ajouté automatiquement par JwtInterceptor (intercepteur HTTP)
+
+--- application-detail.component.ts — Composant détail candidature ------------
+
+  Variables d'état :
+    analyzingCv = false;                          // spinner pendant l'analyse
+    cvAnalysisResult: CvAnalysisResponse | null;  // résultat de l'analyse
+
+  Méthode analyzeCv() :
+    analyzeCv() {
+      if (!this.application) return;
+      this.analyzingCv = true;            // active le spinner
+      this.cvAnalysisResult = null;       // efface l'ancien résultat
+      this.cvAnalysisService.analyzeApplication(this.application.id)
+        .subscribe({
+          next: (result) => {
+            this.cvAnalysisResult = result;   // stocke le résultat
+            this.analyzingCv = false;         // désactive le spinner
+            this.snack.open('Analyse terminée.', 'OK', { duration: 3000 });
+          },
+          error: () => {
+            this.analyzingCv = false;
+            this.snack.open('Erreur lors de l\'analyse du CV.', 'OK');
+          }
+        });
+    }
+
+  • Gestion de l'état de chargement (spinner) et des erreurs (snackbar)
+  • Le résultat est stocké dans cvAnalysisResult pour l'affichage
+
+--- application-detail.component.html — Template HTML -------------------------
+
+  Bouton "Analyser CV" :
+    <button mat-raised-button color="accent"
+            (click)="analyzeCv()" [disabled]="analyzingCv">
+      @if (analyzingCv) { <mat-spinner diameter="18"></mat-spinner> }
+      @else { <mat-icon>psychology</mat-icon> Analyser CV }
+    </button>
+
+  • Placé à côté du bouton "Télécharger" dans la section CV
+  • Couleur accent (violet/rose) pour le distinguer
+  • Désactivé pendant l'analyse pour éviter les double-clics
+  • Affiche un spinner pendant le chargement
+
+  Affichage du résultat :
+    @if (cvAnalysisResult) {
+      <div class="analysis-result">
+        <h4><mat-icon>analytics</mat-icon> Résultat de l'analyse IA</h4>
+
+        <!-- En-tête : nom du candidat + badge score -->
+        <div class="analysis-header">
+          <div class="analysis-candidate">
+            <span class="label">Candidat :</span> {{ cvAnalysisResult.name }}
+          </div>
+          <div class="analysis-score-badge"
+               [class.accepted]="cvAnalysisResult.decision === 'ACCEPTED'"
+               [class.rejected]="cvAnalysisResult.decision === 'REJECTED'">
+            <span class="score-value">{{ cvAnalysisResult.score }}/100</span>
+            <span class="decision-label">
+              {{ cvAnalysisResult.decision === 'ACCEPTED' ? 'ACCEPTÉ' : 'REFUSÉ' }}
+            </span>
+          </div>
+        </div>
+
+        <!-- Barre de progression colorée -->
+        <div class="analysis-bar-container">
+          <div class="analysis-bar"
+               [style.width.%]="cvAnalysisResult.score"
+               [class.high]="cvAnalysisResult.score >= 70"
+               [class.medium]="cvAnalysisResult.score >= 40 && < 70"
+               [class.low]="cvAnalysisResult.score < 40">
+          </div>
+        </div>
+
+        <!-- Compétences détectées en chips -->
+        <div class="analysis-skills">
+          <strong>Compétences détectées :</strong>
+          <div class="skills-chips">
+            @for (skill of cvAnalysisResult.skills; track skill) {
+              <span class="skill-chip">{{ skill }}</span>
+            }
+          </div>
+        </div>
+
+        <!-- Texte justificatif -->
+        <div class="analysis-justification">
+          <strong>Justification :</strong>
+          <p>{{ cvAnalysisResult.justification }}</p>
+        </div>
+      </div>
+    }
+
+  ÉLÉMENTS VISUELS :
+  • Badge score : vert (ACCEPTED) ou rouge (REJECTED)
+  • Barre de progression : largeur = score%, couleur verte/orange/rouge
+  • Skills chips : chaque compétence dans une pastille colorée
+  • Justification : texte complet expliquant la décision
+
+
+================================================================================
+7. SÉCURITÉ
+================================================================================
+
+  • @PreAuthorize("hasAnyRole('ADMIN','RECRUITER')") :
+    Seuls les administrateurs et recruteurs peuvent analyser des CV.
+    Les candidats ne peuvent PAS accéder à ces endpoints.
+
+  • JWT (JSON Web Token) :
+    Chaque requête contient un token Bearer dans le header Authorization.
+    L'intercepteur Angular (JwtInterceptor) l'ajoute automatiquement.
+    Le backend vérifie le token et extrait le rôle de l'utilisateur.
+
+  • Validation du chemin de fichier (FileStorageService) :
+    loadCvPath() vérifie que le chemin demandé est bien dans le répertoire
+    autorisé (uploads/cv) pour empêcher les attaques de type path traversal.
+
+
+================================================================================
+8. DÉPENDANCE — APACHE PDFBOX 3.0.4
+================================================================================
+
+  Dans pom.xml :
+    <dependency>
+      <groupId>org.apache.pdfbox</groupId>
+      <artifactId>pdfbox</artifactId>
+      <version>3.0.4</version>
+    </dependency>
+
+  PDFBox est composé de :
+    • pdfbox-3.0.4.jar : moteur principal d'extraction de texte
+    • fontbox-3.0.4.jar : gestion des polices et encodages
+    • pdfbox-io-3.0.4.jar : entrées/sorties optimisées
+
+  PDFBox est une bibliothèque Apache open-source (licence Apache 2.0)
+  utilisée pour lire, créer et manipuler des fichiers PDF en Java.
+
+
+================================================================================
+9. RÉSUMÉ DU FLUX COMPLET
+================================================================================
+
+  RECRUTEUR → clique "Analyser CV" sur la page application-detail
+       ↓
+  ANGULAR → POST /api/cv/analyze-application/42 (avec JWT)
+       ↓
+  CvAnalysisController → appelle cvAnalysisService.analyzeApplication(42)
+       ↓
+  CvAnalysisService :
+    1. Charge Application id=42 depuis PostgreSQL
+    2. Récupère l'offre d'emploi liée (lazy loading dans @Transactional)
+    3. Construit la description du poste (titre + description + skills)
+    4. Localise le fichier CV sur le disque (uploads/cv/xxx.pdf)
+       ↓
+  CvTextExtractorService :
+    5. Lit le fichier PDF
+    6. PDFBox décode les glyphes → texte brut Unicode
+       ↓
+  CvAnalysisService (suite) :
+    7. extractName() → trouve le nom du candidat
+    8. extractSkills(CV) → détecte les compétences dans le CV
+    9. extractSkills(offre) → détecte les compétences requises
+    10. calculateScore() → score = matchés/requis × 100
+    11. decision = score >= 70 ? "ACCEPTED" : "REJECTED"
+    12. buildJustification() → texte explicatif en français
+       ↓
+  JSON Response → { name, score, decision, skills, justification }
+       ↓
+  ANGULAR → affiche le badge score, la barre, les chips, la justification
+
+
+================================================================================
+FIN DU DOCUMENT
+================================================================================

@@ -36,6 +36,11 @@ export const routes: Routes = [
     loadComponent: () => import('./features/recruiter/application-detail/application-detail.component').then(m => m.ApplicationDetailComponent)
   },
   {
+    path: 'recruiter/cv-analysis',
+    canActivate: [authGuard, roleGuard('RECRUITER', 'ADMIN')],
+    loadComponent: () => import('./features/recruiter/cv-analysis/cv-analysis.component').then(m => m.CvAnalysisComponent)
+  },
+  {
     path: 'admin',
     canActivate: [authGuard, roleGuard('ADMIN')],
     loadComponent: () => import('./features/admin/admin-panel/admin-panel.component').then(m => m.AdminPanelComponent)

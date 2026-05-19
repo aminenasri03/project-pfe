@@ -15,8 +15,10 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatDividerModule } from '@angular/material/divider';
 import { ApplicationService } from '../../../core/services/application.service';
 import { EvaluationService } from '../../../core/services/evaluation.service';
+import { CvAnalysisService } from '../../../core/services/cv-analysis.service';
 import { Application } from '../../../core/models/application.model';
 import { Evaluation } from '../../../core/models/evaluation.model';
+import { CvAnalysisResponse } from '../../../core/models/cv-analysis.model';
 
 @Component({
   selector: 'app-application-detail',
@@ -47,6 +49,8 @@ export class ApplicationDetailComponent implements OnInit {
   loadingEvals = false;
   savingEval = false;
   downloadingCv = false;
+  analyzingCv = false;
+  cvAnalysisResult: CvAnalysisResponse | null = null;
 
   evalForm!: FormGroup;
   evalColumns = ['evaluator', 'score', 'decision', 'comments', 'createdAt'];
@@ -63,6 +67,7 @@ export class ApplicationDetailComponent implements OnInit {
   private router = inject(Router);
   private appService = inject(ApplicationService);
   private evalService = inject(EvaluationService);
+  private cvAnalysisService = inject(CvAnalysisService);
   private fb = inject(FormBuilder);
   private snack = inject(MatSnackBar);
 
@@ -168,5 +173,22 @@ export class ApplicationDetailComponent implements OnInit {
 
   goBack() {
     this.router.navigate(['/recruiter']);
+  }
+
+  analyzeCv() {
+    if (!this.application) return;
+    this.analyzingCv = true;
+    this.cvAnalysisResult = null;
+    this.cvAnalysisService.analyzeApplication(this.application.id).subscribe({
+      next: (result) => {
+        this.cvAnalysisResult = result;
+        this.analyzingCv = false;
+        this.snack.open('Analyse terminée.', 'OK', { duration: 3000 });
+      },
+      error: () => {
+        this.analyzingCv = false;
+        this.snack.open('Erreur lors de l\'analyse du CV.', 'OK', { duration: 3000 });
+      }
+    });
   }
 }
