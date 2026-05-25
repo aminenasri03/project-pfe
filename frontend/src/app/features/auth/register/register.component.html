@@ -1,14 +1,40 @@
 <div class="register-container">
-  <mat-card class="register-card">
-    <mat-card-header>
-      <div class="logo-area">
-        <div class="logo-icon"><mat-icon>work</mat-icon></div>
-        <h1 class="app-title">Créer un compte</h1>
-        <p class="app-subtitle">Sopra HR Software</p>
+  <!-- Left branded panel -->
+  <div class="brand-panel">
+    <div class="brand-panel-content">
+      <img src="SopraHR.png" alt="Sopra HR Software" class="brand-logo">
+      <h2 class="brand-tagline">Rejoignez-nous</h2>
+      <p class="brand-desc">Créez votre compte et accédez à toutes les opportunités de recrutement de Sopra HR Software.</p>
+      <div class="brand-features">
+        <div class="feature-item">
+          <mat-icon>check_circle</mat-icon>
+          <span>Postulez en quelques clics</span>
+        </div>
+        <div class="feature-item">
+          <mat-icon>check_circle</mat-icon>
+          <span>Suivi en temps réel</span>
+        </div>
+        <div class="feature-item">
+          <mat-icon>check_circle</mat-icon>
+          <span>Notifications instantanées</span>
+        </div>
       </div>
-    </mat-card-header>
+    </div>
+    <p class="brand-footer">&copy; 2026 Sopra HR Software</p>
+  </div>
 
-    <mat-card-content>
+  <!-- Right form panel -->
+  <div class="form-panel">
+    <div class="form-wrapper">
+      <div class="mobile-logo">
+        <img src="SopraHR.png" alt="Sopra HR Software" class="mobile-logo-img">
+      </div>
+
+      <div class="form-header">
+        <h1 class="form-title">Créer un compte</h1>
+        <p class="form-subtitle">Remplissez vos informations pour commencer</p>
+      </div>
+
       <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
         <div class="row-2">
           <mat-form-field appearance="outline">
@@ -81,6 +107,6 @@
           Déjà un compte ? <a routerLink="/login">Se connecter</a>
         </p>
       </form>
-    </mat-card-content>
-  </mat-card>
+    </div>
+  </div>
 </div>

@@ -1,34 +1,32 @@
-<mat-toolbar color="primary" class="navbar">
+<mat-toolbar class="navbar">
   <div class="nav-left">
     <a routerLink="/" class="brand">
-      <div class="brand-icon-wrap"><mat-icon>work</mat-icon></div>
-      <span class="brand-text">Sopra HR Recrutement</span>
+      <img src="SopraHR.png" alt="Sopra HR Software" class="brand-logo">
     </a>
 
     @if (auth.isAuthenticated()) {
+      <div class="nav-divider"></div>
       <nav class="nav-links">
         <a routerLink="/offers" routerLinkActive="active-link">
-          <mat-icon>list_alt</mat-icon> Offres
+          <mat-icon>work_outline</mat-icon> Offres
         </a>
         @if (auth.isCandidate()) {
           <a routerLink="/my-applications" routerLinkActive="active-link">
-            <mat-icon>folder_open</mat-icon> Mes candidatures
+            <mat-icon>assignment</mat-icon> Mes candidatures
           </a>
         }
         @if (auth.isRecruiter()) {
           <a routerLink="/recruiter" routerLinkActive="active-link">
-            <mat-icon>dashboard</mat-icon> Tableau de bord
+            <mat-icon>space_dashboard</mat-icon> Tableau de bord
           </a>
-          <a routerLink="/recruiter/cv-analysis" routerLinkActive="active-link">
-            <mat-icon>psychology</mat-icon> Analyse CV
-          </a>
+
         }
         @if (auth.isAdmin()) {
           <a routerLink="/recruiter" routerLinkActive="active-link">
-            <mat-icon>dashboard</mat-icon> Recrutement
+            <mat-icon>space_dashboard</mat-icon> Recrutement
           </a>
           <a routerLink="/admin" routerLinkActive="active-link">
-            <mat-icon>admin_panel_settings</mat-icon> Administration
+            <mat-icon>shield</mat-icon> Administration
           </a>
         }
       </nav>
@@ -47,14 +45,16 @@
       </button>
 
       <mat-menu #notifMenu="matMenu" class="notif-menu">
-        <div class="notif-header">Notifications</div>
+        <div class="notif-header">
+          <mat-icon>notifications</mat-icon> Notifications
+        </div>
         <mat-divider></mat-divider>
         @if (notifications.length === 0) {
           <div class="notif-empty">Aucune notification</div>
         }
         @for (notif of notifications; track notif.id) {
           <button mat-menu-item [class.unread]="!notif.read" (click)="markRead(notif.id)">
-            <mat-icon>{{ notif.read ? 'check_circle' : 'circle_notifications' }}</mat-icon>
+            <mat-icon>{{ notif.read ? 'check_circle_outline' : 'circle_notifications' }}</mat-icon>
             <span class="notif-message">{{ notif.message }}</span>
           </button>
         }
@@ -64,7 +64,7 @@
       <button mat-button [matMenuTriggerFor]="userMenu" class="user-btn">
         <span class="avatar">{{ userInitials }}</span>
         <span class="user-name">{{ userFullName }}</span>
-        <mat-icon>arrow_drop_down</mat-icon>
+        <mat-icon>expand_more</mat-icon>
       </button>
 
       <mat-menu #userMenu="matMenu">
@@ -74,16 +74,18 @@
         </div>
         <mat-divider></mat-divider>
         <button mat-menu-item routerLink="/profile">
-          <mat-icon>account_circle</mat-icon>
+          <mat-icon>person_outline</mat-icon>
           <span>Mon profil</span>
         </button>
-        <button mat-menu-item (click)="logout()">
+        <button mat-menu-item (click)="logout()" class="logout-item">
           <mat-icon>logout</mat-icon>
           <span>Déconnexion</span>
         </button>
       </mat-menu>
     } @else {
-      <a mat-button routerLink="/login" class="login-nav-btn">Se connecter</a>
+      <a mat-button routerLink="/login" class="login-nav-btn">
+        <mat-icon>login</mat-icon> Se connecter
+      </a>
     }
   </div>
 </mat-toolbar>

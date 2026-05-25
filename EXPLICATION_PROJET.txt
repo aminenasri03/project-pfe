@@ -1,0 +1,1157 @@
+================================================================================
+   EXPLICATION COMPLETE DU PROJET — PORTAIL DE RECRUTEMENT SOPRA HR SOFTWARE
+================================================================================
+
+Ce document explique en detail toute la partie code (logique metier, architecture,
+securite, base de donnees, API, frontend) du projet, sans aborder le design/CSS.
+
+================================================================================
+TABLE DES MATIERES
+================================================================================
+1. Vue d'ensemble du projet
+2. Technologies utilisees
+3. Architecture globale
+4. Base de donnees (schema + relations)
+5. Backend — Structure et organisation
+6. Backend — Entites JPA
+7. Backend — Repositories (acces aux donnees)
+8. Backend — DTOs (objets de transfert)
+9. Backend — Services (logique metier)
+10. Backend — Controleurs REST (API)
+11. Backend — Securite (JWT + Spring Security)
+12. Backend — Gestion des erreurs
+13. Frontend — Structure et organisation
+14. Frontend — Modeles de donnees
+15. Frontend — Services (communication avec l'API)
+16. Frontend — Guards et Intercepteur
+17. Frontend — Composants (pages)
+18. Frontend — Routage
+19. Flux complets (scenarios utilisateur)
+20. Resume des endpoints API
+
+
+================================================================================
+1. VUE D'ENSEMBLE DU PROJET
+================================================================================
+
+Le projet est une plateforme web de recrutement permettant a une entreprise
+(Sopra HR Software) de gerer l'ensemble du processus de recrutement :
+- Publication d'offres d'emploi
+- Reception et gestion des candidatures
+- Analyse automatique des CV (matching de competences)
+- Planification d'entretiens
+- Evaluation des candidats
+- Notifications en temps reel
+- Administration des utilisateurs
+
+Il y a 3 roles d'utilisateurs :
+- CANDIDATE : peut consulter les offres, postuler, suivre ses candidatures
+- RECRUITER : peut creer des offres, gerer les candidatures, planifier des
+  entretiens, analyser des CV, evaluer les candidats
+- ADMIN : a tous les droits du recruteur + gestion des utilisateurs (activer/
+  desactiver des comptes, attribuer des roles, supprimer des utilisateurs)
+
+
+================================================================================
+2. TECHNOLOGIES UTILISEES
+================================================================================
+
+BACKEND :
+- Java 21
+- Spring Boot 3.5.14
+- Spring Data JPA (Hibernate) pour l'acces aux donnees
+- Spring Security pour l'authentification et l'autorisation
+- JWT (JJWT 0.12.6) pour les tokens d'authentification
+- PostgreSQL comme base de donnees
+- Flyway pour la migration/versioning du schema de base de donnees
+- Apache PDFBox 3.0.4 pour l'extraction de texte des CV en PDF
+- Lombok pour reduire le code repetitif (getters, setters, builders)
+- SpringDoc OpenAPI 2.8.9 pour la documentation Swagger de l'API
+- Spring Mail pour l'envoi d'emails (configure avec Gmail SMTP)
+- BCrypt pour le hachage des mots de passe
+
+FRONTEND :
+- Angular 21 (standalone components, signaux)
+- TypeScript
+- Angular Material pour les composants UI
+- RxJS pour la programmation reactive
+
+
+================================================================================
+3. ARCHITECTURE GLOBALE
+================================================================================
+
+Le projet suit une architecture client-serveur classique :
+
+   +------------------+          HTTP/REST          +------------------+
+   |                  |  <========================> |                  |
+   |  FRONTEND        |     JSON + JWT Bearer       |  BACKEND         |
+   |  (Angular)       |                             |  (Spring Boot)   |
+   |  Port 4200       |                             |  Port 8080       |
+   +------------------+                             +------------------+
+                                                           |
+                                                           v
+                                                    +------------------+
+                                                    |  PostgreSQL      |
+                                                    |  Port 5432       |
+                                                    |  recruitment_db  |
+                                                    +------------------+
+
+Le frontend communique avec le backend uniquement via des appels HTTP REST.
+Chaque requete authentifiee contient un token JWT dans le header Authorization.
+
+Architecture backend en couches :
+  Controller -> Service -> Repository -> Base de donnees
+  (API REST)   (Logique)  (Acces DB)    (PostgreSQL)
+
+Architecture frontend :
+  Component -> Service -> HttpClient -> Backend API
+  (Vue + logique UI)  (Appels HTTP)
+
+
+================================================================================
+4. BASE DE DONNEES (SCHEMA + RELATIONS)
+================================================================================
+
+Le schema est gere par Flyway (migrations versionnees). Deux fichiers SQL :
+- V1__init_schema.sql : creation des tables
+- V2__seed_data.sql : donnees de demonstration
+
+TABLES :
+
+1. roles
+   - id (SERIAL, PK)
+   - name (VARCHAR UNIQUE) : ROLE_ADMIN, ROLE_RECRUITER, ROLE_CANDIDATE
+
+2. users
+   - id (BIGSERIAL, PK)
+   - email (VARCHAR UNIQUE, NOT NULL)
+   - password_hash (VARCHAR, NOT NULL)
+   - first_name, last_name (VARCHAR, NOT NULL)
+   - department, job_title (VARCHAR, optionnels)
+   - enabled (BOOLEAN, defaut TRUE)
+   - created_at, updated_at (TIMESTAMP)
+
+3. user_roles (table de jointure Many-to-Many)
+   - user_id (FK -> users)
+   - role_id (FK -> roles)
+   - PK(user_id, role_id)
+
+4. job_offers
+   - id (BIGSERIAL, PK)
+   - title, description (TEXT, NOT NULL)
+   - department, location, contract_type (VARCHAR)
+   - required_skills (TEXT)
+   - status (VARCHAR) : OPEN, CLOSED, DRAFT
+   - created_by (FK -> users) : le recruteur qui a cree l'offre
+   - created_at, closes_at (TIMESTAMP)
+
+5. applications
+   - id (BIGSERIAL, PK)
+   - offer_id (FK -> job_offers)
+   - candidate_id (FK -> users)
+   - cover_letter (TEXT)
+   - cv_file_path, cv_file_name (VARCHAR)
+   - matching_score (NUMERIC)
+   - status (VARCHAR) : SUBMITTED, UNDER_REVIEW, SHORTLISTED,
+     INTERVIEW_SCHEDULED, REJECTED, ACCEPTED, WITHDRAWN
+   - submitted_at, updated_at (TIMESTAMP)
+   - CONTRAINTE UNIQUE(offer_id, candidate_id) : un candidat ne peut postuler
+     qu'une seule fois a la meme offre
+
+6. interviews
+   - id (BIGSERIAL, PK)
+   - application_id (FK -> applications)
+   - scheduled_at (TIMESTAMP)
+   - location, mode (ON_SITE, VIDEO, PHONE)
+   - notes (TEXT)
+   - status : SCHEDULED, DONE, CANCELLED, NO_SHOW
+   - created_at (TIMESTAMP)
+
+7. evaluations
+   - id (BIGSERIAL, PK)
+   - application_id (FK -> applications)
+   - evaluator_id (FK -> users) : le recruteur qui evalue
+   - score (INTEGER, 0-100)
+   - comments (TEXT)
+   - decision : HIRE, REJECT, HOLD
+   - created_at (TIMESTAMP)
+
+8. notifications
+   - id (BIGSERIAL, PK)
+   - user_id (FK -> users)
+   - title, message (TEXT)
+   - type (VARCHAR)
+   - read (BOOLEAN, defaut FALSE)
+   - created_at (TIMESTAMP)
+
+RELATIONS ENTRE LES TABLES :
+   User <-->> Application (un candidat a plusieurs candidatures)
+   User <-->> JobOffer (un recruteur cree plusieurs offres)
+   User <-->> Evaluation (un recruteur fait plusieurs evaluations)
+   User <-->> Notification (un utilisateur recoit plusieurs notifications)
+   User <<-->> Role (relation Many-to-Many via user_roles)
+   JobOffer <-->> Application (une offre recoit plusieurs candidatures)
+   Application <-->> Interview (une candidature peut avoir plusieurs entretiens)
+   Application <-->> Evaluation (une candidature peut avoir plusieurs evaluations)
+
+DONNEES DE DEMONSTRATION (V2__seed_data.sql) :
+- 3 roles (ADMIN, RECRUITER, CANDIDATE)
+- 2 recruteurs, 5 candidats (mot de passe : Password@123)
+- 6 offres d'emploi dans differents departements
+- 6 candidatures dans differents statuts
+- 4 entretiens planifies
+- 3 evaluations
+- 7 notifications
+- 1 admin cree automatiquement au demarrage : admin@recruitment.local / Admin@12345
+
+
+================================================================================
+5. BACKEND — STRUCTURE ET ORGANISATION
+================================================================================
+
+Le code backend est organise en packages :
+
+com.recruitment/
+  RecruitmentApplication.java       <- Point d'entree (main)
+  config/
+    SecurityConfig.java             <- Configuration Spring Security
+    DataInitializer.java            <- Creation de l'admin au demarrage
+    OpenApiConfig.java              <- Configuration Swagger
+  controller/
+    AuthController.java             <- Endpoints authentification
+    JobOfferController.java         <- Endpoints offres
+    ApplicationController.java      <- Endpoints candidatures
+    InterviewController.java        <- Endpoints entretiens
+    EvaluationController.java       <- Endpoints evaluations
+    CvAnalysisController.java       <- Endpoints analyse CV
+    NotificationController.java     <- Endpoints notifications
+    UserController.java             <- Endpoints profil + admin users
+  service/
+    AuthService.java                <- Logique inscription/connexion
+    JobOfferService.java            <- Logique offres
+    ApplicationService.java         <- Logique candidatures
+    InterviewService.java           <- Logique entretiens
+    EvaluationService.java          <- Logique evaluations
+    CvAnalysisService.java          <- Logique analyse CV (matching)
+    CvTextExtractorService.java     <- Extraction texte PDF/DOCX
+    FileStorageService.java         <- Stockage fichiers CV
+    NotificationService.java        <- Logique notifications
+    NotificationCreator.java        <- Helper creation notifications
+    UserService.java                <- Logique admin utilisateurs
+    CurrentUser.java                <- Acces a l'utilisateur connecte
+  entity/
+    User.java, Role.java, RoleName.java
+    JobOffer.java, OfferStatus.java
+    Application.java, ApplicationStatus.java
+    Interview.java, InterviewStatus.java, InterviewMode.java
+    Evaluation.java, Decision.java
+    Notification.java
+  repository/
+    UserRepository.java, RoleRepository.java
+    JobOfferRepository.java, ApplicationRepository.java
+    InterviewRepository.java, EvaluationRepository.java
+    NotificationRepository.java
+  dto/
+    auth/     LoginRequest, RegisterRequest, AuthResponse
+    offer/    JobOfferDto, JobOfferRequest
+    application/  ApplicationDto, ApplicationStatusUpdateRequest
+    interview/    InterviewDto, InterviewRequest
+    evaluation/   EvaluationDto, EvaluationRequest
+    cv/       CvAnalysisRequest, CvAnalysisResponse
+    notification/ NotificationDto
+    user/     UserDto
+  mapper/
+    EntityMapper.java               <- Conversion Entity <-> DTO
+  exception/
+    GlobalExceptionHandler.java     <- Gestion centralisee des erreurs
+    ResourceNotFoundException.java
+    BusinessException.java
+  security/
+    JwtService.java                 <- Generation/validation JWT
+    JwtAuthFilter.java              <- Filtre HTTP pour JWT
+    UserPrincipal.java              <- Adaptation User -> UserDetails
+    UserDetailsServiceImpl.java     <- Chargement user pour Spring Security
+
+
+================================================================================
+6. BACKEND — ENTITES JPA
+================================================================================
+
+Les entites representent les tables de la base de donnees en Java.
+
+USER (User.java) :
+- Annotee @Entity, @Table(name = "users")
+- Champs : id, email (unique), passwordHash, firstName, lastName,
+  department, jobTitle, enabled, createdAt, updatedAt
+- Relation @ManyToMany avec Role via la table user_roles (EAGER fetch)
+- Utilise @Builder de Lombok pour la construction
+- @CreationTimestamp et @UpdateTimestamp pour les dates automatiques
+
+ROLE (Role.java) :
+- Champs : id, name (enum RoleName)
+- RoleName : ROLE_ADMIN, ROLE_RECRUITER, ROLE_CANDIDATE
+
+JOB OFFER (JobOffer.java) :
+- Champs : id, title, description, department, location, contractType,
+  requiredSkills, status (enum OfferStatus), createdAt, closesAt
+- Relation @ManyToOne vers User (createdBy) en LAZY
+
+APPLICATION (Application.java) :
+- Champs : id, coverLetter, cvFilePath, cvFileName, matchingScore,
+  status (enum ApplicationStatus), submittedAt, updatedAt
+- Relations @ManyToOne vers JobOffer (offer) et User (candidate)
+- Contrainte unique (offer_id, candidate_id)
+
+INTERVIEW (Interview.java) :
+- Champs : id, scheduledAt, location, mode (enum InterviewMode),
+  notes, status (enum InterviewStatus), createdAt
+- Relation @ManyToOne vers Application
+
+EVALUATION (Evaluation.java) :
+- Champs : id, score, comments, decision (enum Decision), createdAt
+- Relations @ManyToOne vers Application et User (evaluator)
+
+NOTIFICATION (Notification.java) :
+- Champs : id, title, message, type, read, createdAt
+- Relation @ManyToOne vers User
+
+
+================================================================================
+7. BACKEND — REPOSITORIES (ACCES AUX DONNEES)
+================================================================================
+
+Les repositories etendent JpaRepository et fournissent l'acces aux donnees.
+Spring Data JPA genere automatiquement les requetes SQL a partir des noms
+de methodes.
+
+UserRepository :
+- findByEmail(email) : cherche un utilisateur par email
+- existsByEmail(email) : verifie si un email existe deja
+
+RoleRepository :
+- findByName(RoleName) : cherche un role par son nom
+
+JobOfferRepository :
+- findByStatus(status) : offres par statut
+- Etend aussi JpaSpecificationExecutor pour les recherches dynamiques
+  (filtrage par status + department + keyword dans une seule requete)
+
+ApplicationRepository :
+- findByCandidateId(id) : candidatures d'un candidat
+- findByOfferId(id) : candidatures pour une offre
+- findByOfferIdAndStatus(id, status) : filtrage par offre + statut
+- existsByOfferIdAndCandidateId(offerId, candidateId) : verification doublon
+
+InterviewRepository :
+- findByApplicationId(id) : entretiens d'une candidature
+
+EvaluationRepository :
+- findByApplicationId(id) : evaluations d'une candidature
+
+NotificationRepository :
+- findByUserIdOrderByCreatedAtDesc(id) : notifications triees par date
+- countByUserIdAndReadFalse(id) : nombre de notifications non lues
+
+
+================================================================================
+8. BACKEND — DTOs (OBJETS DE TRANSFERT)
+================================================================================
+
+Les DTOs sont des records Java (immutables) utilises pour le transfert de
+donnees entre le frontend et le backend. Ils evitent d'exposer directement
+les entites JPA et permettent de controler les donnees envoyees/recues.
+
+AUTHENTIFICATION :
+- LoginRequest : email (@NotBlank, @Email), password (@NotBlank)
+- RegisterRequest : email, password (@Size min=8), firstName, lastName,
+  department (optionnel), jobTitle (optionnel)
+- AuthResponse : token, expiresIn, userId, email, firstName, lastName, roles[]
+
+OFFRES :
+- JobOfferDto : id, title, description, department, location, contractType,
+  requiredSkills, status, createdById, createdByName, createdAt, closesAt
+- JobOfferRequest : title (@NotBlank), description (@NotBlank), department,
+  location, contractType, requiredSkills, status, closesAt
+
+CANDIDATURES :
+- ApplicationDto : id, offerId, offerTitle, candidateId, candidateFullName,
+  candidateEmail, coverLetter, cvFileName, matchingScore, status,
+  submittedAt, updatedAt
+- ApplicationStatusUpdateRequest : status (@NotNull ApplicationStatus)
+
+ENTRETIENS :
+- InterviewDto : id, applicationId, scheduledAt, location, mode, notes,
+  status, createdAt
+- InterviewRequest : applicationId (@NotNull), scheduledAt (@NotNull),
+  location, mode, notes
+
+EVALUATIONS :
+- EvaluationDto : id, applicationId, evaluatorId, evaluatorName, score,
+  comments, decision, createdAt
+- EvaluationRequest : applicationId (@NotNull), score (@Min 0, @Max 100),
+  comments, decision
+
+ANALYSE CV :
+- CvAnalysisRequest : cvText (@NotBlank), jobDescription (@NotBlank)
+- CvAnalysisResponse : name, score, decision, skills[], justification
+
+NOTIFICATIONS :
+- NotificationDto : id, title, message, type, read, createdAt
+
+UTILISATEUR :
+- UserDto : id, email, firstName, lastName, department, jobTitle, enabled,
+  roles[], createdAt
+
+Le MAPPER (EntityMapper.java) est une classe utilitaire statique qui
+convertit les entites JPA en DTOs. Chaque methode toXxxDto() extrait
+les champs necessaires, y compris les relations (ex: nom du recruteur,
+titre de l'offre, email du candidat).
+
+
+================================================================================
+9. BACKEND — SERVICES (LOGIQUE METIER)
+================================================================================
+
+Les services contiennent toute la logique metier du projet. Ils sont
+appeles par les controleurs et utilisent les repositories pour acceder
+aux donnees.
+
+--- AuthService ---
+register() :
+  1. Verifie que l'email n'existe pas deja (sinon BusinessException)
+  2. Trouve le role ROLE_CANDIDATE dans la base
+  3. Hache le mot de passe avec BCrypt
+  4. Cree et sauvegarde l'utilisateur
+  5. Genere un token JWT et retourne AuthResponse
+
+login() :
+  1. Delegue l'authentification au AuthenticationManager de Spring
+  2. Si les identifiants sont valides, genere un JWT
+  3. Retourne AuthResponse avec le token et les infos utilisateur
+
+--- JobOfferService ---
+search(status, department, keyword, pageable) :
+  1. Construit une Specification dynamique (WHERE conditions combinees)
+  2. Si status fourni : filtre par status
+  3. Si department fourni : filtre par department
+  4. Si keyword fourni : recherche dans title, description, requiredSkills
+  5. Retourne les resultats pagines
+
+create(request) :
+  1. Cree une entite JobOffer a partir du DTO
+  2. Associe le createdBy avec l'utilisateur connecte (CurrentUser)
+  3. Sauvegarde et retourne le DTO
+
+update(id, request) :
+  1. Charge l'offre existante
+  2. Met a jour tous les champs
+  3. Sauvegarde et retourne le DTO
+
+--- ApplicationService ---
+submit(offerId, coverLetter, cvFile) :
+  1. Verifie que l'offre existe (sinon ResourceNotFoundException)
+  2. Verifie que le candidat n'a pas deja postule (sinon BusinessException)
+  3. Stocke le fichier CV via FileStorageService
+  4. Cree l'entite Application avec statut SUBMITTED
+  5. Envoie une notification au recruteur qui a cree l'offre
+  6. Retourne le DTO
+
+updateStatus(id, newStatus) :
+  1. Charge la candidature
+  2. Met a jour le statut
+  3. Envoie une notification au candidat l'informant du changement
+  4. Retourne le DTO
+
+withdraw(id) :
+  1. Charge la candidature
+  2. Verifie que le candidat connecte est bien le proprietaire
+  3. Met le statut a WITHDRAWN
+
+getCvPath(applicationId) :
+  1. Charge la candidature
+  2. Retourne le chemin du fichier CV pour le telechargement
+
+--- InterviewService ---
+schedule(request) :
+  1. Charge la candidature
+  2. Cree l'entretien avec les details fournis
+  3. Met automatiquement le statut de la candidature a INTERVIEW_SCHEDULED
+  4. Envoie une notification au candidat
+  5. Retourne le DTO
+
+--- EvaluationService ---
+create(request) :
+  1. Charge la candidature
+  2. Cree l'evaluation par l'utilisateur connecte (CurrentUser)
+  3. EFFET DE BORD IMPORTANT :
+     - Si decision = HIRE -> le statut de la candidature passe a ACCEPTED
+     - Si decision = REJECT -> le statut passe a REJECTED
+  4. Retourne le DTO
+
+--- CvAnalysisService (ANALYSE LOCALE DES CV) ---
+C'est une analyse par mots-cles (PAS d'intelligence artificielle externe).
+Le service maintient un dictionnaire de ~150+ competences techniques
+organisees par categories (Java, Python, Angular, React, SQL, Docker, etc.)
+
+analyze(cvText, jobDescription) :
+  1. Extrait les competences du texte du CV (extractSkills)
+  2. Extrait les competences requises de la description du poste
+  3. Calcule le score = (competences matchees / competences requises) * 100
+  4. Decision : score >= 70 -> ACCEPTED, sinon REJECTED
+  5. Genere une justification textuelle
+  6. Retourne CvAnalysisResponse (name, score, decision, skills, justification)
+
+analyzeApplication(applicationId) :
+  1. Charge la candidature et le fichier CV stocke
+  2. Extrait le texte du CV via CvTextExtractorService
+  3. Construit la description du poste a partir des champs de l'offre
+  4. Appelle analyze()
+
+extractName(text) :
+  Heuristique : prend la premiere ligne qui ressemble a 2-4 mots capitalises
+
+extractSkills(text) :
+  Deux passes : d'abord les competences multi-mots (ex: "machine learning"),
+  puis les mots simples avec verification de limites de mots
+
+--- CvTextExtractorService ---
+extract(file) :
+  - PDF : utilise Apache PDFBox (PDFTextStripper) pour extraire le texte
+  - DOCX : dezippe le fichier, lit word/document.xml, supprime les balises XML
+  - Autres formats : non supportes (erreur)
+
+--- FileStorageService ---
+storeCv(file) :
+  1. Valide le fichier (non vide, <= 10 MB, extension pdf/doc/docx)
+  2. Genere un nom de fichier UUID pour eviter les conflits
+  3. Verifie la securite du chemin (protection contre le path traversal)
+  4. Copie le fichier dans le repertoire configure (./uploads/cv)
+  5. Retourne le chemin et le nom original
+
+--- NotificationService ---
+mine() : retourne les notifications de l'utilisateur connecte (paginee)
+unreadCount() : compte les notifications non lues
+markAsRead(id) : marque une notification comme lue (verifie la propriete)
+
+--- NotificationCreator ---
+Classe helper simple pour creer et sauvegarder des notifications.
+Utilisee par ApplicationService (nouvelle candidature, changement de statut)
+et InterviewService (entretien planifie).
+
+--- UserService (admin) ---
+list() : liste tous les utilisateurs (pagine)
+setEnabled(id, enabled) : active/desactive un compte
+assignRole(id, role) : ajoute un role a un utilisateur
+removeRole(id, role) : retire un role
+delete(id) : supprime un utilisateur
+
+--- CurrentUser ---
+Composant Spring (@Component) qui extrait l'utilisateur connecte du
+SecurityContext. Fournit :
+- principal() : retourne UserPrincipal (infos de securite)
+- user() : charge l'entite User complete depuis la base de donnees
+
+
+================================================================================
+10. BACKEND — CONTROLEURS REST (API)
+================================================================================
+
+Les controleurs exposent les endpoints HTTP de l'API. Ils recoivent les
+requetes, appellent les services, et retournent les reponses JSON.
+
+--- AuthController (/api/auth) ---
+POST /api/auth/register    -> Inscription (public)
+POST /api/auth/login       -> Connexion (public)
+GET  /api/auth/ping        -> Health check (public)
+
+--- JobOfferController (/api/offers) ---
+GET    /api/offers                -> Liste paginee avec filtres (authentifie)
+       Parametres : status, department, keyword, page, size, sort
+GET    /api/offers/{id}           -> Detail d'une offre (authentifie)
+POST   /api/offers                -> Creer une offre (ADMIN/RECRUITER)
+PUT    /api/offers/{id}           -> Modifier une offre (ADMIN/RECRUITER)
+DELETE /api/offers/{id}           -> Supprimer une offre (ADMIN/RECRUITER)
+
+--- ApplicationController (/api/applications) ---
+POST   /api/applications          -> Postuler avec CV (CANDIDATE, multipart)
+GET    /api/applications/me       -> Mes candidatures (authentifie, pagine)
+GET    /api/applications/by-offer/{offerId}  -> Candidatures d'une offre
+                                               (ADMIN/RECRUITER, pagine)
+GET    /api/applications/{id}     -> Detail candidature (authentifie)
+PATCH  /api/applications/{id}/status  -> Changer statut (ADMIN/RECRUITER)
+DELETE /api/applications/{id}     -> Retirer candidature (CANDIDATE)
+GET    /api/applications/{id}/cv  -> Telecharger CV (ADMIN/RECRUITER)
+
+--- InterviewController (/api/interviews) ---
+POST   /api/interviews            -> Planifier entretien (ADMIN/RECRUITER)
+GET    /api/interviews/by-application/{id}  -> Entretiens d'une candidature
+PATCH  /api/interviews/{id}/status?status=  -> Changer statut entretien
+DELETE /api/interviews/{id}       -> Annuler entretien (ADMIN/RECRUITER)
+
+--- EvaluationController (/api/evaluations) ---
+POST   /api/evaluations           -> Creer evaluation (ADMIN/RECRUITER)
+GET    /api/evaluations/by-application/{id} -> Evaluations d'une candidature
+
+--- CvAnalysisController (/api/cv) ---
+POST   /api/cv/analyze            -> Analyser un CV uploade (multipart)
+POST   /api/cv/analyze-application/{id} -> Analyser CV d'une candidature
+
+--- NotificationController (/api/notifications) ---
+GET    /api/notifications         -> Mes notifications (pagine)
+GET    /api/notifications/unread-count -> Nombre de non lues
+PATCH  /api/notifications/{id}/read    -> Marquer comme lue
+
+--- UserController ---
+GET    /api/users/me              -> Mon profil (authentifie)
+GET    /api/admin/users           -> Liste utilisateurs (ADMIN, pagine)
+GET    /api/admin/users/{id}      -> Detail utilisateur (ADMIN)
+PATCH  /api/admin/users/{id}?enabled= -> Activer/desactiver (ADMIN)
+POST   /api/admin/users/{id}/roles/{role}    -> Ajouter role (ADMIN)
+DELETE /api/admin/users/{id}/roles/{role}    -> Retirer role (ADMIN)
+DELETE /api/admin/users/{id}      -> Supprimer utilisateur (ADMIN)
+
+
+================================================================================
+11. BACKEND — SECURITE (JWT + SPRING SECURITY)
+================================================================================
+
+L'authentification est basee sur JWT (JSON Web Token). Le frontend envoie
+le token dans chaque requete HTTP via le header Authorization: Bearer <token>.
+
+FLUX D'AUTHENTIFICATION :
+1. L'utilisateur envoie email + mot de passe a /api/auth/login
+2. Spring Security verifie les identifiants via DaoAuthenticationProvider
+   qui utilise UserDetailsServiceImpl pour charger l'utilisateur depuis
+   la base de donnees, et BCrypt pour verifier le mot de passe
+3. Si valide, JwtService genere un token JWT signe avec HMAC-SHA
+   (duree de vie : 1 heure par defaut)
+4. Le token est retourne au frontend dans AuthResponse
+5. Le frontend stocke le token dans localStorage
+6. A chaque requete, le JwtInterceptor du frontend ajoute le header
+   Authorization: Bearer <token>
+7. Cote backend, JwtAuthFilter (filtre HTTP) :
+   - Extrait le token du header
+   - Valide le token via JwtService (signature + expiration)
+   - Charge l'utilisateur via UserDetailsServiceImpl
+   - Met a jour le SecurityContext de Spring
+
+CONFIGURATION SPRING SECURITY (SecurityConfig.java) :
+- Session STATELESS (pas de session HTTP, tout passe par JWT)
+- CSRF desactive (SPA + JWT rend CSRF inutile)
+- CORS configure pour http://localhost:4200 (frontend Angular)
+- Endpoints publics : /api/auth/**, Swagger, Actuator
+- /api/admin/** : accessible uniquement par ADMIN
+- @EnableMethodSecurity active @PreAuthorize sur les methodes des controleurs
+
+UserPrincipal :
+- Implemente UserDetails de Spring Security
+- Convertit les roles de l'entite User en GrantedAuthority
+- Fournit : id, email, password, enabled, authorities
+
+JwtService :
+- generateToken(userDetails) : cree un JWT avec subject=email, date d'expiration
+- isTokenValid(token, userDetails) : verifie email + non expire
+- extractUsername(token) : lit le claim "subject" du JWT
+- Supporte les secrets en Base64 ou texte brut (minimum 32 bytes pour HMAC)
+
+ADMIN INITIAL (DataInitializer.java) :
+Au demarrage, si l'admin n'existe pas, cree automatiquement :
+- Email : admin@recruitment.local
+- Mot de passe : Admin@12345
+- Role : ROLE_ADMIN
+
+
+================================================================================
+12. BACKEND — GESTION DES ERREURS
+================================================================================
+
+GlobalExceptionHandler.java est un @RestControllerAdvice qui intercepte
+toutes les exceptions et retourne des reponses JSON structurees :
+
+Format de reponse erreur (ApiError record) :
+{
+  "timestamp": "2024-...",
+  "status": 404,
+  "error": "Not Found",
+  "message": "...",
+  "details": [...]
+}
+
+Exceptions gerees :
+- ResourceNotFoundException -> HTTP 404
+- BusinessException -> HTTP 400
+- BadCredentialsException -> HTTP 401 (identifiants invalides)
+- AccessDeniedException -> HTTP 403 (acces refuse)
+- MethodArgumentNotValidException -> HTTP 400 (erreurs de validation avec
+  details par champ)
+- Exception (catch-all) -> HTTP 500 (erreur interne)
+
+
+================================================================================
+13. FRONTEND — STRUCTURE ET ORGANISATION
+================================================================================
+
+src/app/
+  app.ts                          <- Composant racine (shell)
+  app.routes.ts                   <- Definition des routes
+  app.config.ts                   <- Providers (HTTP, router, Material)
+  core/
+    guards/
+      auth.guard.ts               <- Garde : utilisateur connecte ?
+      role.guard.ts               <- Garde : utilisateur a le bon role ?
+    interceptors/
+      jwt.interceptor.ts          <- Ajoute le token JWT aux requetes
+    models/
+      user.model.ts               <- Types User, AuthRequest, AuthResponse
+      offer.model.ts              <- Types JobOffer, Page<T>, filtres
+      application.model.ts        <- Types Application, ApplicationStatus
+      cv-analysis.model.ts        <- Types CvAnalysisResponse
+      evaluation.model.ts         <- Types Evaluation, Decision
+      interview.model.ts          <- Types Interview, InterviewMode/Status
+      notification.model.ts       <- Type Notification
+    services/
+      auth.service.ts             <- Login, register, logout, gestion JWT
+      offer.service.ts            <- CRUD offres
+      application.service.ts      <- Postuler, mes candidatures, retirer
+      cv-analysis.service.ts      <- Analyse CV
+      evaluation.service.ts       <- Evaluations
+      interview.service.ts        <- Entretiens
+      notification.service.ts     <- Notifications
+      admin.service.ts            <- Gestion utilisateurs (admin)
+  features/
+    auth/
+      login/                      <- Page de connexion
+      register/                   <- Page d'inscription
+    offers/
+      offer-list/                 <- Liste des offres (recherche + filtres)
+      offer-detail/               <- Detail d'une offre + formulaire candidature
+    applications/
+      my-applications/            <- Tableau des candidatures du candidat
+    recruiter/
+      recruiter-dashboard/        <- Dashboard recruteur (offres + candidatures)
+      application-detail/         <- Detail candidature (CV, analyse, statut)
+      cv-analysis/                <- Page analyse CV standalone
+    admin/
+      admin-panel/                <- Gestion des utilisateurs
+    profile/                      <- Page profil utilisateur
+  shared/
+    navbar/                       <- Barre de navigation
+    confirm-dialog/               <- Dialog de confirmation reutilisable
+    unauthorized/                 <- Page acces refuse
+
+
+================================================================================
+14. FRONTEND — MODELES DE DONNEES
+================================================================================
+
+Les modeles TypeScript definissent les types des donnees echangees avec l'API.
+
+user.model.ts :
+- Role = 'ADMIN' | 'RECRUITER' | 'CANDIDATE'
+- User : id, firstName, lastName, email, role, enabled, createdAt
+- AuthRequest : email, password
+- RegisterRequest : email, password, firstName, lastName, department?, jobTitle?
+- AuthResponse : token, expiresIn, userId, email, firstName, lastName, roles[]
+
+offer.model.ts :
+- OfferStatus = 'OPEN' | 'CLOSED' | 'DRAFT'
+- JobOffer : id, title, description, department, location, contractType,
+  requiredSkills?, status, createdById?, createdByName?, createdAt, closesAt?
+- JobOfferFilter : status?, department?, keyword?, page?, size?
+- Page<T> : content[], totalElements, totalPages, number, size
+  (type generique pour les reponses paginees)
+
+application.model.ts :
+- ApplicationStatus = 'SUBMITTED' | 'UNDER_REVIEW' | ... | 'WITHDRAWN'
+- Application : id, offerId, offerTitle, candidateId, candidateFullName,
+  candidateEmail, coverLetter?, cvFileName?, matchingScore?, status,
+  submittedAt, updatedAt
+
+cv-analysis.model.ts :
+- CvAnalysisResponse : name, score, decision, skills[], justification
+
+evaluation.model.ts :
+- Decision = 'HIRE' | 'REJECT' | 'HOLD'
+- Evaluation : id, applicationId, evaluatorId, evaluatorName, score?,
+  comments?, decision?, createdAt
+- EvaluationRequest : applicationId, score?, comments?, decision?
+
+interview.model.ts :
+- InterviewMode = 'ON_SITE' | 'VIDEO' | 'PHONE'
+- InterviewStatus = 'SCHEDULED' | 'DONE' | 'CANCELLED' | 'NO_SHOW'
+- Interview : id, applicationId, scheduledAt, location?, mode?, notes?,
+  status, createdAt
+- InterviewCreateRequest : applicationId, scheduledAt, location?, mode?, notes?
+
+notification.model.ts :
+- Notification : id, title?, message, type?, read, createdAt
+
+
+================================================================================
+15. FRONTEND — SERVICES (COMMUNICATION AVEC L'API)
+================================================================================
+
+Tous les services utilisent HttpClient d'Angular pour communiquer avec
+le backend. Ils sont fournis en root (singleton).
+
+--- AuthService ---
+Gestion de l'authentification avec des signaux Angular pour l'etat reactif.
+
+Etat (signaux Angular) :
+- currentUser : signal de l'utilisateur connecte (null si deconnecte)
+- isAuthenticated : computed signal (true si currentUser != null)
+- role : computed signal (role de l'utilisateur connecte)
+- isAdmin, isRecruiter, isCandidate : computed booleans
+
+Stockage : localStorage pour jwt_token et current_user
+
+login(credentials) :
+  POST /api/auth/login -> stocke token + user dans localStorage, met a jour
+  le signal currentUser
+
+register(request) :
+  POST /api/auth/register -> meme logique que login (auto-connexion)
+
+getMe() :
+  GET /api/users/me -> retourne le profil complet de l'utilisateur
+
+logout() :
+  Supprime token et user de localStorage, met currentUser a null,
+  navigue vers /login
+
+getToken() :
+  Lit le JWT depuis localStorage
+
+loadStoredUser() :
+  Au demarrage de l'application, verifie si un token valide existe dans
+  localStorage et restaure la session
+
+mapResponseToUser() :
+  Convertit AuthResponse en User, en supprimant le prefixe "ROLE_" des roles
+
+--- OfferService ---
+getOffers(filter) : GET /api/offers avec parametres de filtre
+getOffer(id) : GET /api/offers/{id}
+createOffer(offer) : POST /api/offers
+updateOffer(id, offer) : PUT /api/offers/{id}
+deleteOffer(id) : DELETE /api/offers/{id}
+setOfferStatus(offer, status) : PUT /api/offers/{id} (avec nouveau statut)
+getMyOffers() : GET /api/offers?size=100 (toutes les offres, extrait content)
+
+--- ApplicationService ---
+apply(offerId, coverLetter, cv) :
+  POST /api/applications (multipart/form-data avec fichier CV)
+getMyApplications() : GET /api/applications/me?size=50
+getApplicationById(id) : GET /api/applications/{id}
+getApplicationsByOffer(offerId) : GET /api/applications/by-offer/{offerId}
+updateStatus(id, status) : PATCH /api/applications/{id}/status
+withdraw(id) : DELETE /api/applications/{id}
+downloadCv(applicationId) :
+  GET /api/applications/{id}/cv (reponse blob pour telechargement)
+
+--- CvAnalysisService ---
+analyze(cvFile, jobDescription) :
+  POST /api/cv/analyze (multipart : fichier cv + texte jobDescription)
+analyzeApplication(applicationId) :
+  POST /api/cv/analyze-application/{id}
+
+--- EvaluationService ---
+create(request) : POST /api/evaluations
+getByApplication(applicationId) : GET /api/evaluations/by-application/{id}
+
+--- InterviewService ---
+scheduleInterview(request) : POST /api/interviews
+getInterviewsByApplication(id) : GET /api/interviews/by-application/{id}
+updateStatus(id, status) : PATCH /api/interviews/{id}/status?status=
+cancel(id) : DELETE /api/interviews/{id}
+
+--- NotificationService ---
+getNotifications() : GET /api/notifications?size=20 (extrait content)
+getUnreadCount() : GET /api/notifications/unread-count
+markAsRead(id) : PATCH /api/notifications/{id}/read
+
+--- AdminService ---
+getUsers() : GET /api/admin/users?size=100
+setUserEnabled(id, enabled) : PATCH /api/admin/users/{id}?enabled=
+deleteUser(id) : DELETE /api/admin/users/{id}
+addRole(userId, role) : POST /api/admin/users/{userId}/roles/{role}
+removeRole(userId, role) : DELETE /api/admin/users/{userId}/roles/{role}
+Helper toUser(dto) : convertit UserDto backend en User frontend
+  (supprime le prefixe ROLE_)
+
+
+================================================================================
+16. FRONTEND — GUARDS ET INTERCEPTEUR
+================================================================================
+
+GUARDS (protections de routes) :
+
+authGuard (auth.guard.ts) :
+- Type : CanActivateFn (guard fonctionnel Angular)
+- Logique : verifie AuthService.isAuthenticated()
+  - Si connecte -> autorise l'acces
+  - Sinon -> redirige vers /login
+
+roleGuard (role.guard.ts) :
+- Type : fonction factory qui retourne un CanActivateFn
+- Usage : roleGuard('ADMIN', 'RECRUITER') pour autoriser plusieurs roles
+- Logique : verifie si AuthService.role() est dans les roles autorises
+  - Si oui -> autorise l'acces
+  - Sinon -> redirige vers /unauthorized
+
+INTERCEPTEUR :
+
+jwtInterceptor (jwt.interceptor.ts) :
+- Type : HttpInterceptorFn (intercepteur fonctionnel Angular)
+- Configure dans app.config.ts via provideHttpClient(withInterceptors([...]))
+- Logique : pour chaque requete HTTP sortante :
+  1. Lit le token via AuthService.getToken()
+  2. Si un token existe, clone la requete en ajoutant le header :
+     Authorization: Bearer <token>
+  3. Passe la requete modifiee au handler suivant
+
+
+================================================================================
+17. FRONTEND — COMPOSANTS (PAGES)
+================================================================================
+
+--- LoginComponent ---
+Formulaire de connexion avec email + mot de passe.
+Appelle AuthService.login(). En cas de succes, redirige selon le role :
+  ADMIN -> /admin
+  RECRUITER -> /recruiter
+  Autre -> /offers
+En cas d'erreur 401, affiche "Identifiants invalides".
+
+--- RegisterComponent ---
+Formulaire d'inscription : prenom, nom, email, mot de passe (min 8 chars),
+departement (optionnel), poste (optionnel).
+Appelle AuthService.register(). En cas de succes, redirige vers /offers.
+En cas d'erreur 409 (conflit), affiche "Email deja utilise".
+
+--- OfferListComponent ---
+Page principale listant les offres d'emploi avec :
+- Filtres reactifs : keyword (recherche texte), department, status
+- Pagination (9 offres par page)
+- Les filtres utilisent combineLatest + debounceTime pour recharger
+  automatiquement les resultats quand un filtre change
+- Chaque offre est cliquable et mene vers /offers/{id}
+
+--- OfferDetailComponent ---
+Detail d'une offre avec toutes les informations.
+Pour les candidats authentifies : formulaire de candidature avec
+- Lettre de motivation (textarea)
+- Upload du CV (fichier PDF/DOCX)
+- Appel a ApplicationService.apply() en multipart
+
+--- MyApplicationsComponent ---
+Tableau des candidatures du candidat connecte.
+Colonnes : offre, departement, date de candidature, statut, actions.
+Le candidat peut retirer sa candidature si le statut est SUBMITTED ou
+UNDER_REVIEW (confirmation via ConfirmDialogComponent).
+
+--- RecruiterDashboardComponent ---
+Dashboard principal du recruteur. C'est le composant le plus complexe :
+
+Gestion des offres :
+- Formulaire pour creer/modifier une offre (titre, departement, lieu,
+  type de contrat, competences requises, description, date de cloture)
+- Boutons pour publier (OPEN), fermer (CLOSED), supprimer une offre
+- Chaque action destructive demande une confirmation
+
+Gestion des candidatures :
+- Charge toutes les candidatures de toutes les offres (forkJoin)
+- Filtrage en temps reel par recherche, statut, offre
+- Changement de statut d'une candidature
+- Planification d'entretien via formulaire (date, mode, lieu, notes)
+- Lien vers le detail de la candidature
+
+--- ApplicationDetailComponent ---
+Detail complet d'une candidature (vue recruteur) :
+- Informations du candidat et de l'offre
+- Changement de statut avec boutons
+- Telechargement du CV (cree un element <a> pour le download)
+- Analyse du CV : appelle CvAnalysisService.analyzeApplication() et
+  affiche le resultat (score, decision, competences, justification)
+
+--- CvAnalysisComponent ---
+Page standalone pour analyser un CV :
+- Upload d'un fichier CV
+- Saisie de la description du poste
+- Appelle CvAnalysisService.analyze()
+- Affiche : nom du candidat, score/100, decision ACCEPTED/REJECTED,
+  competences detectees, justification
+
+--- AdminPanelComponent ---
+Page d'administration des utilisateurs :
+- Liste tous les utilisateurs avec leurs roles
+- Compteurs : admins, recruteurs, candidats, actifs
+- Actions : activer/desactiver un compte, changer le role, supprimer
+- Changement de role : supprime l'ancien role puis ajoute le nouveau
+  (deux appels API sequentiels)
+- Chaque action destructive demande une confirmation
+
+--- ProfileComponent ---
+Page de profil de l'utilisateur connecte.
+Affiche : prenom, nom, email, departement, poste, role.
+Appelle AuthService.getMe() pour charger les donnees.
+
+--- NavbarComponent ---
+Barre de navigation presente sur toutes les pages.
+- Affiche le logo et les liens de navigation selon le role :
+  - Candidat : Offres, Mes candidatures, Profil
+  - Recruteur : Offres, Dashboard, Analyse CV, Profil
+  - Admin : Offres, Dashboard, Analyse CV, Administration, Profil
+- Menu notifications avec badge de non lues
+- Bouton de deconnexion
+- Applique une classe CSS au <body> selon le role pour le theming
+  (theme-admin, theme-recruiter, theme-candidate)
+
+--- ConfirmDialogComponent ---
+Dialog de confirmation reutilisable (modale Material).
+Recoit un message via MAT_DIALOG_DATA, affiche Annuler/Confirmer.
+Retourne true (confirme) ou false (annule).
+
+--- UnauthorizedComponent ---
+Page affichee quand un utilisateur tente d'acceder a une route interdite.
+Affiche une icone cadenas + message "Acces refuse" + lien retour aux offres.
+
+
+================================================================================
+18. FRONTEND — ROUTAGE
+================================================================================
+
+Toutes les routes utilisent le lazy loading (standalone components).
+
+/                          -> Redirige vers /offers
+/login                     -> LoginComponent (public)
+/register                  -> RegisterComponent (public)
+/offers                    -> OfferListComponent (public)
+/offers/:id                -> OfferDetailComponent (public)
+/my-applications           -> MyApplicationsComponent (authGuard + roleGuard CANDIDATE)
+/recruiter                 -> RecruiterDashboardComponent (authGuard + roleGuard RECRUITER, ADMIN)
+/recruiter/application/:id -> ApplicationDetailComponent (authGuard + roleGuard RECRUITER, ADMIN)
+/recruiter/cv-analysis     -> CvAnalysisComponent (authGuard + roleGuard RECRUITER, ADMIN)
+/admin                     -> AdminPanelComponent (authGuard + roleGuard ADMIN)
+/profile                   -> ProfileComponent (authGuard)
+/unauthorized              -> UnauthorizedComponent (public)
+**                         -> Redirige vers /offers (wildcard)
+
+
+================================================================================
+19. FLUX COMPLETS (SCENARIOS UTILISATEUR)
+================================================================================
+
+--- SCENARIO 1 : Un candidat postule a une offre ---
+1. Le candidat visite /offers et voit la liste des offres OPEN
+2. Il clique sur une offre -> /offers/{id} (OfferDetailComponent)
+3. S'il n'est pas connecte, il est invite a se connecter
+4. Il clique "Postuler", un formulaire apparait
+5. Il ecrit une lettre de motivation et uploade son CV (PDF/DOCX)
+6. Frontend : ApplicationService.apply() envoie une requete multipart
+   POST /api/applications avec offerId, coverLetter, fichier CV
+7. Backend : ApplicationService.submit() :
+   - Verifie que l'offre existe
+   - Verifie qu'il n'a pas deja postule
+   - Stocke le CV sur le disque (FileStorageService)
+   - Cree l'Application avec statut SUBMITTED
+   - Envoie une notification au recruteur
+8. Le candidat est redirige vers /my-applications ou il voit sa candidature
+
+--- SCENARIO 2 : Un recruteur gere les candidatures ---
+1. Le recruteur se connecte -> redirige vers /recruiter
+2. Le RecruiterDashboardComponent charge toutes ses offres puis
+   toutes les candidatures de chaque offre (forkJoin)
+3. Il peut filtrer par recherche, statut, offre
+4. Il change le statut d'une candidature (ex: SUBMITTED -> UNDER_REVIEW)
+   Frontend : PATCH /api/applications/{id}/status
+   Backend : met a jour le statut + envoie notification au candidat
+5. Il planifie un entretien :
+   Frontend : POST /api/interviews avec date, mode, lieu
+   Backend : cree l'entretien, met l'application a INTERVIEW_SCHEDULED,
+   envoie notification au candidat
+6. Il clique "Voir detail" -> /recruiter/application/{id}
+7. Il telecharge le CV (GET /api/applications/{id}/cv)
+8. Il lance l'analyse CV :
+   Frontend : POST /api/cv/analyze-application/{id}
+   Backend : extrait le texte du CV (PDFBox), compare les competences
+   avec la description du poste, calcule un score, retourne le resultat
+
+--- SCENARIO 3 : L'admin gere les utilisateurs ---
+1. L'admin se connecte -> redirige vers /admin
+2. AdminPanelComponent charge la liste des utilisateurs
+3. Il peut :
+   - Desactiver un compte (PATCH /api/admin/users/{id}?enabled=false)
+   - Changer le role d'un utilisateur (DELETE ancien role + POST nouveau)
+   - Supprimer un utilisateur (DELETE /api/admin/users/{id})
+4. Chaque action passe par un ConfirmDialogComponent
+
+--- SCENARIO 4 : Analyse CV standalone ---
+1. Le recruteur va sur /recruiter/cv-analysis
+2. Il uploade un fichier CV et saisit une description de poste
+3. Frontend : POST /api/cv/analyze (multipart)
+4. Backend :
+   - Extrait le texte du CV (PDFBox ou dezipage DOCX)
+   - Extrait les competences du CV et de la description
+   - Calcule le score de matching
+   - Retourne : nom, score, decision, competences, justification
+5. Le resultat s'affiche : score/100, ACCEPTED/REJECTED, competences detectees
+
+
+================================================================================
+20. RESUME DES ENDPOINTS API
+================================================================================
+
+AUTHENTIFICATION (public) :
+  POST /api/auth/register           -> Inscription
+  POST /api/auth/login              -> Connexion
+  GET  /api/auth/ping               -> Health check
+
+OFFRES :
+  GET    /api/offers                 -> Liste avec filtres (authentifie)
+  GET    /api/offers/{id}            -> Detail (authentifie)
+  POST   /api/offers                 -> Creer (ADMIN/RECRUITER)
+  PUT    /api/offers/{id}            -> Modifier (ADMIN/RECRUITER)
+  DELETE /api/offers/{id}            -> Supprimer (ADMIN/RECRUITER)
+
+CANDIDATURES :
+  POST   /api/applications          -> Postuler (CANDIDATE, multipart)
+  GET    /api/applications/me       -> Mes candidatures (authentifie)
+  GET    /api/applications/by-offer/{id} -> Par offre (ADMIN/RECRUITER)
+  GET    /api/applications/{id}     -> Detail (authentifie)
+  PATCH  /api/applications/{id}/status -> Changer statut (ADMIN/RECRUITER)
+  DELETE /api/applications/{id}     -> Retirer (CANDIDATE)
+  GET    /api/applications/{id}/cv  -> Telecharger CV (ADMIN/RECRUITER)
+
+ENTRETIENS :
+  POST   /api/interviews            -> Planifier (ADMIN/RECRUITER)
+  GET    /api/interviews/by-application/{id} -> Par candidature
+  PATCH  /api/interviews/{id}/status -> Changer statut (ADMIN/RECRUITER)
+  DELETE /api/interviews/{id}       -> Annuler (ADMIN/RECRUITER)
+
+EVALUATIONS :
+  POST   /api/evaluations           -> Creer (ADMIN/RECRUITER)
+  GET    /api/evaluations/by-application/{id} -> Par candidature
+
+ANALYSE CV :
+  POST   /api/cv/analyze            -> Analyser un CV (multipart)
+  POST   /api/cv/analyze-application/{id} -> Analyser CV d'une candidature
+
+NOTIFICATIONS :
+  GET    /api/notifications         -> Mes notifications
+  GET    /api/notifications/unread-count -> Nombre non lues
+  PATCH  /api/notifications/{id}/read -> Marquer comme lue
+
+UTILISATEURS / ADMIN :
+  GET    /api/users/me              -> Mon profil
+  GET    /api/admin/users           -> Liste utilisateurs (ADMIN)
+  PATCH  /api/admin/users/{id}      -> Activer/desactiver (ADMIN)
+  POST   /api/admin/users/{id}/roles/{role}  -> Ajouter role (ADMIN)
+  DELETE /api/admin/users/{id}/roles/{role}  -> Retirer role (ADMIN)
+  DELETE /api/admin/users/{id}      -> Supprimer utilisateur (ADMIN)
+
+
+================================================================================
+FIN DU DOCUMENT
+================================================================================

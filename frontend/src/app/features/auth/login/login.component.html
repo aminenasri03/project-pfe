@@ -1,19 +1,45 @@
 <div class="login-container">
-  <mat-card class="login-card">
-    <mat-card-header>
-      <div class="logo-area">
-        <div class="logo-icon"><mat-icon>work</mat-icon></div>
-        <h1 class="app-title">Portail de Recrutement</h1>
-        <p class="app-subtitle">Sopra HR Software</p>
+  <!-- Left branded panel -->
+  <div class="brand-panel">
+    <div class="brand-panel-content">
+      <img src="SopraHR.png" alt="Sopra HR Software" class="brand-logo">
+      <h2 class="brand-tagline">Portail de Recrutement</h2>
+      <p class="brand-desc">Gérez vos candidatures, découvrez de nouvelles opportunités et rejoignez une équipe d'excellence.</p>
+      <div class="brand-features">
+        <div class="feature-item">
+          <mat-icon>check_circle</mat-icon>
+          <span>Candidatures en temps réel</span>
+        </div>
+        <div class="feature-item">
+          <mat-icon>check_circle</mat-icon>
+          <span>Analyse IA des CV</span>
+        </div>
+        <div class="feature-item">
+          <mat-icon>check_circle</mat-icon>
+          <span>Suivi complet du recrutement</span>
+        </div>
       </div>
-    </mat-card-header>
+    </div>
+    <p class="brand-footer">&copy; 2026 Sopra HR Software</p>
+  </div>
 
-    <mat-card-content>
+  <!-- Right form panel -->
+  <div class="form-panel">
+    <div class="form-wrapper">
+      <div class="mobile-logo">
+        <img src="SopraHR.png" alt="Sopra HR Software" class="mobile-logo-img">
+      </div>
+
+      <div class="form-header">
+        <h1 class="form-title">Connexion</h1>
+        <p class="form-subtitle">Entrez vos identifiants pour accéder à votre espace</p>
+      </div>
+
       <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
         <mat-form-field appearance="outline" class="full-width">
           <mat-label>Adresse e-mail</mat-label>
           <input matInput formControlName="email" type="email" autocomplete="email" placeholder="exemple@soprahrsoft.com">
-          <mat-icon matPrefix>email</mat-icon>
+          <mat-icon matPrefix>mail_outline</mat-icon>
           @if (form.get('email')?.hasError('required') && form.get('email')?.touched) {
             <mat-error>L'adresse e-mail est requise.</mat-error>
           } @else if (form.get('email')?.hasError('email') && form.get('email')?.touched) {
@@ -24,7 +50,7 @@
         <mat-form-field appearance="outline" class="full-width">
           <mat-label>Mot de passe</mat-label>
           <input matInput formControlName="password" [type]="hidePassword ? 'password' : 'text'" autocomplete="current-password">
-          <mat-icon matPrefix>lock</mat-icon>
+          <mat-icon matPrefix>lock_outline</mat-icon>
           <button mat-icon-button matSuffix type="button" (click)="hidePassword = !hidePassword">
             <mat-icon>{{ hidePassword ? 'visibility_off' : 'visibility' }}</mat-icon>
           </button>
@@ -57,6 +83,6 @@
           Pas encore inscrit ? <a routerLink="/register">Créer un compte</a>
         </p>
       </form>
-    </mat-card-content>
-  </mat-card>
+    </div>
+  </div>
 </div>
